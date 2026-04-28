@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Treadmill Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         [v-cloak] { display: none; }
+        #map { width: 100%; height: 400px; border-radius: 0.5rem; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
@@ -26,6 +29,9 @@
         <section class="bg-white rounded-lg shadow p-6 mb-8 flex flex-wrap gap-4 items-center">
             <button id="btn-connect" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200">
                 Connect Treadmill
+            </button>
+            <button id="btn-simulate" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded transition duration-200">
+                Simulate Machine
             </button>
             <button id="btn-disconnect" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition duration-200 hidden">
                 Disconnect
@@ -115,6 +121,27 @@
                     <span class="text-sm text-gray-500 ml-1">bpm</span>
                 </div>
             </div>
+        </section>
+
+        <!-- Map Visualization -->
+        <section class="bg-white rounded-lg shadow overflow-hidden mb-8">
+            <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-2">
+                <h2 class="text-lg font-bold text-gray-800">Virtual Run Map</h2>
+                <div class="flex items-center flex-wrap gap-2">
+                    <label class="text-sm bg-green-100 text-green-800 hover:bg-green-200 py-1 px-3 rounded transition cursor-pointer font-semibold shadow-sm">
+                        📁 Load GPX
+                        <input type="file" id="input-gpx" accept=".gpx" class="hidden">
+                    </label>
+                    <button id="btn-map-locate" class="text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 py-1 px-3 rounded transition shadow-sm">
+                        📍 GPS
+                    </button>
+                    <button id="btn-toggle-3d" class="text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 py-1 px-3 rounded transition shadow-sm font-medium">
+                        3D View
+                    </button>
+                    <span class="text-xs text-gray-500 hidden md:inline">or click map to start</span>
+                </div>
+            </div>
+            <div id="map"></div>
         </section>
 
         <!-- History -->

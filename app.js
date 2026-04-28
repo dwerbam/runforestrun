@@ -9,6 +9,7 @@ let controlCharacteristic = null;
 
 // UI Elements
 const btnConnect = document.getElementById('btn-connect');
+const btnSimulate = document.getElementById('btn-simulate');
 const btnDisconnect = document.getElementById('btn-disconnect');
 const btnStartRun = document.getElementById('btn-start-run');
 const btnStopRun = document.getElementById('btn-stop-run');
@@ -106,7 +107,7 @@ function onDisconnected() {
 function updateConnectionStatus(connected) {
     if (connected) {
         statusDot.classList.replace('bg-red-500', 'bg-green-500');
-        statusText.textContent = 'Connected: ' + (bluetoothDevice.name || 'Treadmill');
+        statusText.textContent = 'Connected: ' + (bluetoothDevice?.name || 'Treadmill');
         btnConnect.classList.add('hidden');
         btnDisconnect.classList.remove('hidden');
         btnStartRun.disabled = false;
@@ -119,6 +120,7 @@ function updateConnectionStatus(connected) {
         statusDot.classList.replace('bg-green-500', 'bg-red-500');
         statusText.textContent = 'Disconnected';
         btnConnect.classList.remove('hidden');
+        btnSimulate.classList.remove('hidden');
         btnDisconnect.classList.add('hidden');
         btnStartRun.disabled = true;
         btnStartRun.classList.add('opacity-50', 'cursor-not-allowed');
@@ -128,6 +130,49 @@ function updateConnectionStatus(connected) {
         elSpeed.textContent = '0.0';
         elIncline.textContent = '0';
         elHr.textContent = '--';
+    }
+}
+
+// --- Simulator ---
+
+let simulationInterval = null;
+let simDistance = 0;
+let simTime = 0;
+
+function toggleSimulation() {
+    if (simulationInterval) {
+        // Stop Simulation
+        clearInterval(simulationInterval);
+        simulationInterval = null;
+        btnSimulate.textContent = 'Simulate Machine';
+        btnSimulate.classList.replace('bg-purple-800', 'bg-purple-500');
+        onDisconnected(); // Re-use standard disconnect logic
+    } else {
+        // Start Simulation
+        simDistance = 0;
+        simTime = 0;
+        btnSimulate.textContent = 'Stop Simulation';
+        btnSimulate.classList.replace('bg-purple-500', 'bg-purple-800');
+        
+        // Mock connection status
+        updateConnectionStatus(true);
+        statusText.textContent = 'Connected: Simulator';
+        btnConnect.classList.add('hidden');
+        btnSimulate.classList.remove('hidden'); // Keep simulator button visible
+
+        // Push fake data every second (simulating ~10 km/h)
+        simulationInterval = setInterval(() => {
+            simTime += 1;
+            simDistance += 2.778; // 10 km/h in meters per second
+            
+            updateDashboard({
+                speed: 10.0,
+                totalDistance: Math.round(simDistance),
+                elapsedTime: simTime,
+                inclination: 1.5,
+                heartRate: 145
+            });
+        }, 1000);
     }
 }
 
@@ -319,7 +364,88 @@ function updateDashboard(data) {
             if (currentRun.distanceStartOffset === null) {
                 currentRun.distanceStartOffset = data.totalDistance;
             }
+            const previousDistance = currentRun.distance;
             currentRun.distance = data.totalDistance - currentRun.distanceStartOffset;
+            
+            // Move avatar on map if we have a start point
+            if (startCoordinates && currentRun.distance > previousDistance) {
+                let newPos;
+                
+                if (loadedGpxRoute && loadedGpxRoute.length > 1) {
+                    // Follow the GPX path!
+                    let pt1 = loadedGpxRoute[0];
+                    let pt2 = loadedGpxRoute[loadedGpxRoute.length - 1];
+                    let currentIndex = 0;
+                    
+                    // Find the segment we are currently on
+                    for (let i = 0; i < loadedGpxRoute.length - 1; i++) {
+                        if (currentRun.distance >= loadedGpxRoute[i].cumulativeDistance && 
+                            currentRun.distance <= loadedGpxRoute[i+1].cumulativeDistance) {
+                            pt1 = loadedGpxRoute[i];
+                            pt2 = loadedGpxRoute[i+1];
+                            currentIndex = i;
+                            break;
+                        }
+                    }
+                    
+                    if (currentRun.distance > pt2.cumulativeDistance) {
+                         // We finished the GPX route!
+                         newPos = [pt2.lng, pt2.lat];
+                    } else {
+                         // Interpolate position along the segment
+                         const segmentLen = pt2.cumulativeDistance - pt1.cumulativeDistance;
+                         if (segmentLen === 0) {
+                             newPos = [pt1.lng, pt1.lat];
+                         } else {
+                             const t = (currentRun.distance - pt1.cumulativeDistance) / segmentLen;
+                             const lat = pt1.lat + t * (pt2.lat - pt1.lat);
+                             const lng = pt1.lng + t * (pt2.lng - pt1.lng);
+                             newPos = [lng, lat];
+                             
+                             // --- MAGIC: Auto-Incline ---
+                             // Calculate gradient for the current segment
+                             const eleDelta = pt2.ele - pt1.ele;
+                             let gradientPct = (eleDelta / segmentLen) * 100;
+                             
+                             // Cap the gradient to physical treadmill limits (e.g. 0% to 15%)
+                             gradientPct = Math.max(0, Math.min(15.0, gradientPct));
+                             
+                             // Only send command if the target incline has changed significantly
+                             const targetIncline = Math.round(gradientPct * 2) / 2; // Round to nearest 0.5%
+                             const currentDisplayIncline = parseFloat(elIncline.textContent);
+                             
+                             if (!isNaN(currentDisplayIncline) && Math.abs(currentDisplayIncline - targetIncline) >= 0.5) {
+                                 // Update the UI Input and trigger the command if connected
+                                 inputIncline.value = targetIncline.toFixed(1);
+                                 if (controlCharacteristic) {
+                                     setMachineIncline();
+                                 }
+                             }
+                         }
+                    }
+                } else {
+                    // Free Run (No GPX): travel in a large circle.
+                    const distanceDelta = currentRun.distance - previousDistance;
+                    const bearing = (currentRun.distance / 5) % 360;
+                    const lastPos = routeCoordinates[routeCoordinates.length - 1];
+                    newPos = calculateDestinationLocation(lastPos[0], lastPos[1], distanceDelta, bearing);
+                }
+                
+                routeCoordinates.push(newPos);
+                avatarMarker.setLngLat(newPos);
+                
+                if (routeLineSource) {
+                    routeLineSource.setData({
+                        'type': 'Feature',
+                        'properties': {},
+                        'geometry': { 'type': 'LineString', 'coordinates': routeCoordinates }
+                    });
+                }
+                
+                if (is3DEnabled) {
+                     map.panTo(newPos);
+                }
+            }
         }
         
         // Display distance for current session if recording, else machine total
@@ -399,6 +525,7 @@ function stopRun() {
 // --- Event Listeners ---
 
 btnConnect.addEventListener('click', connectToTreadmill);
+btnSimulate.addEventListener('click', toggleSimulation);
 btnDisconnect.addEventListener('click', disconnectTreadmill);
 btnStartRun.addEventListener('click', startRun);
 btnStopRun.addEventListener('click', stopRun);
@@ -408,3 +535,262 @@ btnMachinePause.addEventListener('click', pauseMachine);
 btnMachineStop.addEventListener('click', stopMachine);
 btnSetSpeed.addEventListener('click', setMachineSpeed);
 btnSetIncline.addEventListener('click', setMachineIncline);
+
+// --- MapLibre Integration (Gamified Virtual Run) ---
+
+let map;
+let avatarMarker;
+let routeLineSource;
+let routeCoordinates = [];
+let startCoordinates = null; // [lng, lat]
+
+// A simple open-source raster tile style from OSM
+const osmStyle = {
+    "version": 8,
+    "sources": {
+        "osm": {
+            "type": "raster",
+            "tiles": ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            "tileSize": 256,
+            "attribution": "&copy; OpenStreetMap Contributors",
+            "maxzoom": 19
+        }
+    },
+    "layers": [{
+        "id": "osm",
+        "type": "raster",
+        "source": "osm"
+    }]
+};
+
+function initMap() {
+    map = new maplibregl.Map({
+        container: 'map',
+        style: osmStyle,
+        center: [-0.1276, 51.5072], // Default London
+        zoom: 13
+    });
+
+    map.on('load', () => {
+        // Free 3D Terrain DEM source (Mapzen Terrarium format)
+        map.addSource('terrain-source', {
+            'type': 'raster-dem',
+            'tiles': ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+            'encoding': 'terrarium',
+            'tileSize': 256,
+            'maxzoom': 14
+        });
+        
+        // Source and Layer for the planned GPX route
+        map.addSource('planned-route', {
+            'type': 'geojson',
+            'data': { 'type': 'Feature', 'properties': {}, 'geometry': { 'type': 'LineString', 'coordinates': [] } }
+        });
+        
+        map.addLayer({
+            'id': 'planned-route-line',
+            'type': 'line',
+            'source': 'planned-route',
+            'layout': { 'line-join': 'round', 'line-cap': 'round' },
+            'paint': { 'line-color': '#3B82F6', 'line-width': 4, 'line-opacity': 0.6 } // Tailwind blue-500
+        });
+
+        // Source and Layer for the trail behind the runner
+        map.addSource('route', {
+            'type': 'geojson',
+            'data': {
+                'type': 'Feature',
+                'properties': {},
+                'geometry': {
+                    'type': 'LineString',
+                    'coordinates': []
+                }
+            }
+        });
+        
+        map.addLayer({
+            'id': 'route',
+            'type': 'line',
+            'source': 'route',
+            'layout': {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            'paint': {
+                'line-color': '#EF4444', // Tailwind red-500
+                'line-width': 4
+            }
+        });
+        
+        routeLineSource = map.getSource('route');
+    });
+
+    // Click map to set start point
+    map.on('click', (e) => {
+        if (isRecording) {
+            alert("Cannot change start point while recording.");
+            return;
+        }
+        setMapStartPoint(e.lngLat.lng, e.lngLat.lat);
+    });
+}
+
+document.getElementById('btn-map-locate').addEventListener('click', () => {
+    if (isRecording) return;
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition((position) => {
+            setMapStartPoint(position.coords.longitude, position.coords.latitude);
+            map.flyTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 15 });
+        }, (error) => {
+            alert("Geolocation error: " + error.message);
+        });
+    } else {
+        alert("Geolocation not supported by your browser.");
+    }
+});
+
+function setMapStartPoint(lng, lat) {
+    startCoordinates = [lng, lat];
+    routeCoordinates = [[lng, lat]];
+    
+    if (avatarMarker) avatarMarker.remove();
+    
+    // Create a custom red dot for the avatar
+    const el = document.createElement('div');
+    el.className = 'w-4 h-4 bg-red-600 border-2 border-white rounded-full shadow-md';
+    
+    avatarMarker = new maplibregl.Marker(el)
+        .setLngLat([lng, lat])
+        .addTo(map);
+        
+    if (routeLineSource) {
+        routeLineSource.setData({
+            'type': 'Feature',
+            'properties': {},
+            'geometry': { 'type': 'LineString', 'coordinates': routeCoordinates }
+        });
+    }
+}
+
+// Math to calculate a new Lat/Lng based on distance and bearing
+function calculateDestinationLocation(lng, lat, distanceMeters, bearingDegrees) {
+    const R = 6378137; // Earth's radius in meters
+    const d = distanceMeters;
+    
+    const lat1 = lat * Math.PI / 180;
+    const lng1 = lng * Math.PI / 180;
+    const brng = bearingDegrees * Math.PI / 180;
+    
+    let lat2 = Math.asin(Math.sin(lat1) * Math.cos(d / R) + Math.cos(lat1) * Math.sin(d / R) * Math.cos(brng));
+    let lng2 = lng1 + Math.atan2(Math.sin(brng) * Math.sin(d / R) * Math.cos(lat1), Math.cos(d / R) - Math.sin(lat1) * Math.sin(lat2));
+    
+    lat2 = lat2 * 180 / Math.PI;
+    lng2 = lng2 * 180 / Math.PI;
+    
+    return [lng2, lat2];
+}
+
+// --- GPX Parsing & Map Logic ---
+
+let loadedGpxRoute = null; // Array of {lat, lng, ele, cumulativeDistance}
+let is3DEnabled = false;
+
+document.getElementById('btn-toggle-3d').addEventListener('click', (e) => {
+    is3DEnabled = !is3DEnabled;
+    const btn = e.target;
+    if (is3DEnabled) {
+        map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 1.5 });
+        map.setPitch(60); // Tilt camera
+        btn.classList.replace('bg-gray-200', 'bg-blue-600');
+        btn.classList.replace('text-gray-700', 'text-white');
+    } else {
+        map.setTerrain(null);
+        map.setPitch(0);
+        btn.classList.replace('bg-blue-600', 'bg-gray-200');
+        btn.classList.replace('text-white', 'text-gray-700');
+    }
+});
+
+document.getElementById('input-gpx').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (isRecording) {
+        alert("Cannot load a new route while recording.");
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const xmlString = e.target.result;
+        parseGPX(xmlString);
+    };
+    reader.readAsText(file);
+});
+
+function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // metres
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lon2-lon1) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+function parseGPX(xmlString) {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+    const trackPoints = Array.from(xmlDoc.getElementsByTagName("trkpt"));
+    
+    if (trackPoints.length === 0) {
+        alert("No valid track points found in GPX.");
+        return;
+    }
+
+    let cumulativeDistance = 0;
+    loadedGpxRoute = [];
+    const geoJsonCoords = [];
+
+    for (let i = 0; i < trackPoints.length; i++) {
+        const pt = trackPoints[i];
+        const lat = parseFloat(pt.getAttribute("lat"));
+        const lng = parseFloat(pt.getAttribute("lon"));
+        const eleNode = pt.getElementsByTagName("ele")[0];
+        const ele = eleNode ? parseFloat(eleNode.textContent) : 0;
+        
+        if (i > 0) {
+            const prev = loadedGpxRoute[i - 1];
+            cumulativeDistance += haversineDistanceMeters(prev.lat, prev.lng, lat, lng);
+        }
+        
+        loadedGpxRoute.push({ lat, lng, ele, cumulativeDistance });
+        geoJsonCoords.push([lng, lat]);
+    }
+
+    // Draw the planned route
+    map.getSource('planned-route').setData({
+        'type': 'Feature',
+        'properties': {},
+        'geometry': { 'type': 'LineString', 'coordinates': geoJsonCoords }
+    });
+
+    // Auto-set start point to the beginning of the GPX
+    const startPt = loadedGpxRoute[0];
+    setMapStartPoint(startPt.lng, startPt.lat);
+    
+    // Fit map bounds to the route
+    const bounds = geoJsonCoords.reduce(function(bounds, coord) {
+        return bounds.extend(coord);
+    }, new maplibregl.LngLatBounds(geoJsonCoords[0], geoJsonCoords[0]));
+    
+    map.fitBounds(bounds, { padding: 40 });
+    
+    alert(`Loaded GPX route! Total distance: ${(cumulativeDistance / 1000).toFixed(2)} km`);
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', initMap);
