@@ -431,15 +431,23 @@ function updateDashboard(data) {
                          }
                     }
                 } else {
-                    // Free Run (No GPX): travel in a large circle.
-                    const distanceDelta = currentRun.distance - previousDistance;
-                    const bearing = (currentRun.distance / 5) % 360;
-                    const lastPos = routeCoordinates[routeCoordinates.length - 1];
-                    newPos = calculateDestinationLocation(lastPos[0], lastPos[1], distanceDelta, bearing);
+                    // No GPX loaded. Do not move the map avatar.
+                    return;
                 }
                 
                 routeCoordinates.push(newPos);
-                avatarMarker.setLngLat(newPos);
+                
+                // Update GeoJSON Avatar
+                if (map.getSource('avatar')) {
+                    map.getSource('avatar').setData({
+                        'type': 'Feature',
+                        'properties': {},
+                        'geometry': {
+                            'type': 'Point',
+                            'coordinates': newPos
+                        }
+                    });
+                }
                 
                 if (routeLineSource) {
                     routeLineSource.setData({
@@ -449,8 +457,40 @@ function updateDashboard(data) {
                     });
                 }
                 
-                if (is3DEnabled) {
-                     map.panTo(newPos);
+                // Keep the camera locked to the runner
+                if (cameraMode === 1) {
+                     map.easeTo({ center: newPos, duration: 1000, easing: (t) => t });
+                } else if (cameraMode === 2) {
+                     // Get the direction we are moving
+                     let bearing = map.getBearing(); // Fallback to current bearing
+                     
+                     // If we have a GPX, we can calculate the exact bearing to the next point
+                     if (loadedGpxRoute && loadedGpxRoute.length > 1) {
+                         // Find the segment we are on again to look ahead
+                         for (let i = 0; i < loadedGpxRoute.length - 1; i++) {
+                             if (currentRun.distance >= loadedGpxRoute[i].cumulativeDistance && 
+                                 currentRun.distance <= loadedGpxRoute[i+1].cumulativeDistance) {
+                                 // Look at the NEXT point to get the true heading of the path
+                                 let pt2 = loadedGpxRoute[i+1];
+                                 bearing = calculateBearing(newPos[1], newPos[0], pt2.lat, pt2.lng);
+                                 break;
+                             }
+                         }
+                     } else {
+                         // Free run: just use the bearing of the last step
+                         bearing = calculateBearing(lastPos[1], lastPos[0], newPos[1], newPos[0]);
+                     }
+
+                     map.easeTo({
+                         center: newPos,
+                         bearing: bearing,
+                         pitch: 80, 
+                         zoom: 19, // Closer zoom for FP feel
+                         duration: 1000, 
+                         easing: (t) => t 
+                     });
+                } else {
+                     map.easeTo({ center: newPos, duration: 1000, easing: (t) => t });
                 }
             }
         }
@@ -546,8 +586,7 @@ btnSetIncline.addEventListener('click', setMachineIncline);
 // --- MapLibre Integration (Gamified Virtual Run) ---
 
 let map;
-let avatarMarker;
-let routeLineSource;
+let routeLineSource = null;
 let routeCoordinates = [];
 let startCoordinates = null; // [lng, lat]
 
@@ -629,46 +668,52 @@ function initMap() {
             }
         });
         
+        // Source and Layer for the Avatar dot (to replace HTML Marker)
+        map.addSource('avatar', {
+            'type': 'geojson',
+            'data': {
+                'type': 'Feature',
+                'properties': {},
+                'geometry': {
+                    'type': 'Point',
+                    'coordinates': [0, 0]
+                }
+            }
+        });
+
+        map.addLayer({
+            'id': 'avatar-point',
+            'type': 'circle',
+            'source': 'avatar',
+            'paint': {
+                'circle-radius': 6,
+                'circle-color': '#EF4444', // Red 500
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#ffffff' // White border
+            }
+        });
+        
         routeLineSource = map.getSource('route');
     });
 
-    // Click map to set start point
-    map.on('click', (e) => {
-        if (isRecording) {
-            alert("Cannot change start point while recording.");
-            return;
-        }
-        setMapStartPoint(e.lngLat.lng, e.lngLat.lat);
-    });
+    // map.on('click') removed as requested
 }
-
-document.getElementById('btn-map-locate').addEventListener('click', () => {
-    if (isRecording) return;
-    if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition((position) => {
-            setMapStartPoint(position.coords.longitude, position.coords.latitude);
-            map.flyTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 15 });
-        }, (error) => {
-            alert("Geolocation error: " + error.message);
-        });
-    } else {
-        alert("Geolocation not supported by your browser.");
-    }
-});
 
 function setMapStartPoint(lng, lat) {
     startCoordinates = [lng, lat];
     routeCoordinates = [[lng, lat]];
     
-    if (avatarMarker) avatarMarker.remove();
-    
-    // Create a custom red dot for the avatar
-    const el = document.createElement('div');
-    el.className = 'w-4 h-4 bg-red-600 border-2 border-white rounded-full shadow-md';
-    
-    avatarMarker = new maplibregl.Marker(el)
-        .setLngLat([lng, lat])
-        .addTo(map);
+    // Update GeoJSON Avatar
+    if (map.getSource('avatar')) {
+        map.getSource('avatar').setData({
+            'type': 'Feature',
+            'properties': {},
+            'geometry': {
+                'type': 'Point',
+                'coordinates': [lng, lat]
+            }
+        });
+    }
         
     if (routeLineSource) {
         routeLineSource.setData({
@@ -676,6 +721,15 @@ function setMapStartPoint(lng, lat) {
             'properties': {},
             'geometry': { 'type': 'LineString', 'coordinates': routeCoordinates }
         });
+    }
+
+    // Orient camera to the start of the GPX if we are in First Person mode
+    if (cameraMode === 2 && loadedGpxRoute && loadedGpxRoute.length > 1) {
+        let pt2 = loadedGpxRoute[1]; // Look at the second point
+        let bearing = calculateBearing(lat, lng, pt2.lat, pt2.lng);
+        map.jumpTo({ center: [lng, lat], bearing: bearing, zoom: 19, pitch: 80 });
+    } else {
+        map.jumpTo({ center: [lng, lat] });
     }
 }
 
@@ -700,21 +754,31 @@ function calculateDestinationLocation(lng, lat, distanceMeters, bearingDegrees) 
 // --- GPX Parsing & Map Logic ---
 
 let loadedGpxRoute = null; // Array of {lat, lng, ele, cumulativeDistance}
-let is3DEnabled = false;
+let cameraMode = 0; // 0: 2D, 1: 3D Bird's Eye, 2: First Person
 
-document.getElementById('btn-toggle-3d').addEventListener('click', (e) => {
-    is3DEnabled = !is3DEnabled;
+document.getElementById('btn-toggle-camera').addEventListener('click', (e) => {
+    cameraMode = (cameraMode + 1) % 3;
     const btn = e.target;
-    if (is3DEnabled) {
+    
+    if (cameraMode === 0) { // 2D Map
+        map.setTerrain(null);
+        map.easeTo({ pitch: 0, bearing: 0, zoom: 14, duration: 1000 });
+        btn.textContent = '📷 2D Map';
+        btn.classList.replace('bg-indigo-600', 'bg-gray-200');
+        btn.classList.replace('text-white', 'text-gray-700');
+    } else if (cameraMode === 1) { // 3D Bird's Eye
         map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 1.5 });
-        map.setPitch(60); // Tilt camera
+        map.easeTo({ pitch: 60, zoom: 15, duration: 1000 });
+        btn.textContent = '🚁 3D Bird\'s Eye';
         btn.classList.replace('bg-gray-200', 'bg-blue-600');
         btn.classList.replace('text-gray-700', 'text-white');
-    } else {
-        map.setTerrain(null);
-        map.setPitch(0);
-        btn.classList.replace('bg-blue-600', 'bg-gray-200');
-        btn.classList.replace('text-white', 'text-gray-700');
+    } else if (cameraMode === 2) { // First Person
+        map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 1.5 });
+        // The camera position will be updated dynamically in the animation loop, 
+        // but we set a high zoom and extreme pitch here to start.
+        map.easeTo({ pitch: 80, zoom: 18, duration: 1000 });
+        btn.textContent = '🎮 First Person';
+        btn.classList.replace('bg-blue-600', 'bg-indigo-600');
     }
 });
 
@@ -746,6 +810,21 @@ function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
               Math.sin(Δλ/2) * Math.sin(Δλ/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
+}
+
+function calculateBearing(lat1, lng1, lat2, lng2) {
+    const toRad = (degree) => degree * Math.PI / 180;
+    const toDeg = (rad) => rad * 180 / Math.PI;
+
+    const dLng = toRad(lng2 - lng1);
+    const rLat1 = toRad(lat1);
+    const rLat2 = toRad(lat2);
+
+    const y = Math.sin(dLng) * Math.cos(rLat2);
+    const x = Math.cos(rLat1) * Math.sin(rLat2) - Math.sin(rLat1) * Math.cos(rLat2) * Math.cos(dLng);
+    
+    let bearing = toDeg(Math.atan2(y, x));
+    return (bearing + 360) % 360;
 }
 
 function parseGPX(xmlString) {
