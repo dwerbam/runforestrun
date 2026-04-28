@@ -402,23 +402,30 @@ function updateDashboard(data) {
                              const lng = pt1.lng + t * (pt2.lng - pt1.lng);
                              newPos = [lng, lat];
                              
-                             // --- MAGIC: Auto-Incline ---
-                             // Calculate gradient for the current segment
-                             const eleDelta = pt2.ele - pt1.ele;
-                             let gradientPct = (eleDelta / segmentLen) * 100;
-                             
-                             // Cap the gradient to physical treadmill limits (e.g. 0% to 15%)
-                             gradientPct = Math.max(0, Math.min(15.0, gradientPct));
-                             
-                             // Only send command if the target incline has changed significantly
-                             const targetIncline = Math.round(gradientPct * 2) / 2; // Round to nearest 0.5%
-                             const currentDisplayIncline = parseFloat(elIncline.textContent);
-                             
-                             if (!isNaN(currentDisplayIncline) && Math.abs(currentDisplayIncline - targetIncline) >= 0.5) {
-                                 // Update the UI Input and trigger the command if connected
-                                 inputIncline.value = targetIncline.toFixed(1);
-                                 if (controlCharacteristic) {
-                                     setMachineIncline();
+                             // --- MAGIC: Auto-Incline (Smoothed & Throttled) ---
+                             const now = Date.now();
+                             if (now - lastInclineCmdTime > INCLINE_COOLDOWN_MS) {
+                                 const currentEle = getElevationAtDistance(currentRun.distance);
+                                 const futureEle = getElevationAtDistance(currentRun.distance + LOOKAHEAD_METERS);
+                                 
+                                 // Calculate gradient over the lookahead window
+                                 let gradientPct = ((futureEle - currentEle) / LOOKAHEAD_METERS) * 100;
+                                 
+                                 // Cap the gradient to physical treadmill limits (0% to 15%)
+                                 gradientPct = Math.max(0, Math.min(15.0, gradientPct));
+                                 
+                                 // Round to nearest 0.5% (treadmills usually don't support finer resolution)
+                                 const targetIncline = Math.round(gradientPct * 2) / 2; 
+                                 const currentDisplayIncline = parseFloat(elIncline.textContent);
+                                 
+                                 if (!isNaN(currentDisplayIncline) && Math.abs(currentDisplayIncline - targetIncline) >= 0.5) {
+                                     // Update the UI Input and trigger the command if connected
+                                     inputIncline.value = targetIncline.toFixed(1);
+                                     if (controlCharacteristic) {
+                                         setMachineIncline();
+                                     }
+                                     lastInclineCmdTime = now;
+                                     console.log(`Auto-Incline Update: Smoothed target set to ${targetIncline}% (Raw Gradient: ${gradientPct.toFixed(2)}%)`);
                                  }
                              }
                          }
@@ -544,29 +551,29 @@ let routeLineSource;
 let routeCoordinates = [];
 let startCoordinates = null; // [lng, lat]
 
-// A simple open-source raster tile style from OSM
-const osmStyle = {
+// A realistic satellite tile style for a videogame/flight-simulator feel
+const satelliteStyle = {
     "version": 8,
     "sources": {
-        "osm": {
+        "esri": {
             "type": "raster",
-            "tiles": ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
             "tileSize": 256,
-            "attribution": "&copy; OpenStreetMap Contributors",
+            "attribution": "&copy; Esri, Maxar, Earthstar Geographics",
             "maxzoom": 19
         }
     },
     "layers": [{
-        "id": "osm",
+        "id": "esri-satellite",
         "type": "raster",
-        "source": "osm"
+        "source": "esri"
     }]
 };
 
 function initMap() {
     map = new maplibregl.Map({
         container: 'map',
-        style: osmStyle,
+        style: satelliteStyle,
         center: [-0.1276, 51.5072], // Default London
         zoom: 13
     });
@@ -794,3 +801,29 @@ function parseGPX(xmlString) {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', initMap);
+
+// --- Smoothed Elevation Helper ---
+let lastInclineCmdTime = 0;
+const INCLINE_COOLDOWN_MS = 15000; // Minimum 15 seconds between Bluetooth commands
+const LOOKAHEAD_METERS = 40; // Calculate average gradient over the next 40 meters to smooth out noise
+
+function getElevationAtDistance(targetDist) {
+    if (!loadedGpxRoute || loadedGpxRoute.length === 0) return 0;
+    if (targetDist <= 0) return loadedGpxRoute[0].ele;
+    
+    let lastPt = loadedGpxRoute[loadedGpxRoute.length - 1];
+    if (targetDist >= lastPt.cumulativeDistance) return lastPt.ele;
+    
+    for (let i = 0; i < loadedGpxRoute.length - 1; i++) {
+        if (targetDist >= loadedGpxRoute[i].cumulativeDistance && targetDist <= loadedGpxRoute[i+1].cumulativeDistance) {
+            let pt1 = loadedGpxRoute[i];
+            let pt2 = loadedGpxRoute[i+1];
+            let segmentLen = pt2.cumulativeDistance - pt1.cumulativeDistance;
+            if (segmentLen === 0) return pt1.ele;
+            
+            let t = (targetDist - pt1.cumulativeDistance) / segmentLen;
+            return pt1.ele + t * (pt2.ele - pt1.ele);
+        }
+    }
+    return 0;
+}
