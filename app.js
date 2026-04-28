@@ -12,6 +12,7 @@ const btnConnect = document.getElementById('btn-connect');
 const btnSimulate = document.getElementById('btn-simulate');
 const btnDisconnect = document.getElementById('btn-disconnect');
 const btnStartRun = document.getElementById('btn-start-run');
+const btnPauseRun = document.getElementById('btn-pause-run');
 const btnStopRun = document.getElementById('btn-stop-run');
 const statusDot = document.getElementById('bt-status-dot');
 const statusText = document.getElementById('bt-status-text');
@@ -41,14 +42,14 @@ const elIncline = document.getElementById('metric-incline');
 const elHr = document.getElementById('metric-hr');
 
 // Current Run State
-let isRecording = false;
+let runState = 'idle'; // 'idle', 'recording', 'paused'
+let lastMachineDistance = null;
+let lastMachineCalories = null;
+
 let currentRun = {
-    startTime: null,
     durationSeconds: 0,
-    distanceStartOffset: null, // to calc distance within the session
     distance: 0, // meters
     speeds: [],
-    caloriesStartOffset: null,
     calories: 0
 };
 
@@ -104,7 +105,7 @@ function disconnectTreadmill() {
 function onDisconnected() {
     console.log('Device disconnected');
     updateConnectionStatus(false);
-    if (isRecording) {
+    if (runState !== 'idle') {
         stopRun();
     }
 }
@@ -354,7 +355,7 @@ function handleTreadmillData(event) {
 function updateDashboard(data) {
     if (data.speed !== undefined) {
         elSpeed.textContent = data.speed.toFixed(1);
-        if (isRecording) currentRun.speeds.push(data.speed);
+        if (runState === 'recording') currentRun.speeds.push(data.speed);
     }
 
     if (data.inclination !== undefined) {
@@ -366,13 +367,17 @@ function updateDashboard(data) {
     }
 
     if (data.totalDistance !== undefined) {
-        // Absolute total distance from machine
-        if (isRecording) {
-            if (currentRun.distanceStartOffset === null) {
-                currentRun.distanceStartOffset = data.totalDistance;
-            }
+        // Calculate the delta distance since the last machine payload
+        let distanceDelta = 0;
+        if (lastMachineDistance !== null && data.totalDistance >= lastMachineDistance) {
+            distanceDelta = data.totalDistance - lastMachineDistance;
+        }
+        lastMachineDistance = data.totalDistance;
+
+        // Only accumulate session distance if we are actively recording (not paused)
+        if (runState === 'recording') {
             const previousDistance = currentRun.distance;
-            currentRun.distance = data.totalDistance - currentRun.distanceStartOffset;
+            currentRun.distance += distanceDelta;
             
             // Move avatar on map if we have a start point
             if (startCoordinates && currentRun.distance > previousDistance) {
@@ -502,23 +507,26 @@ function updateDashboard(data) {
             }
         }
         
-        // Display distance for current session if recording, else machine total
-        const displayDist = isRecording ? currentRun.distance : data.totalDistance;
+        // Display distance for current session if recording/paused, else machine total
+        const displayDist = (runState !== 'idle') ? currentRun.distance : data.totalDistance;
         elDistance.textContent = (displayDist / 1000).toFixed(2);
     }
 
     if (data.totalCalories !== undefined) {
-        if (isRecording) {
-            if (currentRun.caloriesStartOffset === null) {
-                currentRun.caloriesStartOffset = data.totalCalories;
-            }
-            currentRun.calories = data.totalCalories - currentRun.caloriesStartOffset;
+        let caloriesDelta = 0;
+        if (lastMachineCalories !== null && data.totalCalories >= lastMachineCalories) {
+            caloriesDelta = data.totalCalories - lastMachineCalories;
+        }
+        lastMachineCalories = data.totalCalories;
+
+        if (runState === 'recording') {
+            currentRun.calories += caloriesDelta;
         }
     }
 
     // Time from machine
     if (data.elapsedTime !== undefined) {
-        if (!isRecording) {
+        if (runState === 'idle') {
              elTime.textContent = formatDuration(data.elapsedTime);
         }
     }
@@ -526,36 +534,75 @@ function updateDashboard(data) {
 
 // Local timer fallback for run recording
 let timerInterval;
+let lastTimerTick = 0;
 
 function startRun() {
-    isRecording = true;
+    if (!startCoordinates && !loadedGpxRoute) {
+        if(!confirm("No route loaded. Run in Free Mode without moving the map avatar?")) return;
+    }
+
+    runState = 'recording';
     currentRun = {
-        startTime: Date.now(),
         durationSeconds: 0,
-        distanceStartOffset: null,
         distance: 0,
         speeds: [],
-        caloriesStartOffset: null,
         calories: 0
     };
 
     btnStartRun.classList.add('hidden');
+    btnPauseRun.classList.remove('hidden');
     btnStopRun.classList.remove('hidden');
+    runStatusText.textContent = "Recording";
     runStatusText.classList.remove('hidden');
 
-    timerInterval = setInterval(() => {
-        currentRun.durationSeconds = Math.floor((Date.now() - currentRun.startTime) / 1000);
-        elTime.textContent = formatDuration(currentRun.durationSeconds);
-    }, 1000);
+    lastTimerTick = Date.now();
+    timerInterval = setInterval(updateTimer, 1000);
+}
+
+function pauseRun() {
+    if (runState === 'recording') {
+        runState = 'paused';
+        btnPauseRun.innerHTML = '▶ Resume';
+        btnPauseRun.classList.replace('bg-yellow-500', 'bg-green-500');
+        btnPauseRun.classList.replace('hover:bg-yellow-400', 'hover:bg-green-400');
+        runStatusText.textContent = "Paused";
+        runStatusText.classList.replace('text-green-400', 'text-yellow-400');
+    } else if (runState === 'paused') {
+        runState = 'recording';
+        btnPauseRun.innerHTML = '⏸ Pause';
+        btnPauseRun.classList.replace('bg-green-500', 'bg-yellow-500');
+        btnPauseRun.classList.replace('hover:bg-green-400', 'hover:bg-yellow-400');
+        runStatusText.textContent = "Recording";
+        runStatusText.classList.replace('text-yellow-400', 'text-green-400');
+        lastTimerTick = Date.now(); // Reset tick to avoid jumping time
+    }
+}
+
+function updateTimer() {
+    if (runState === 'recording') {
+        const now = Date.now();
+        currentRun.durationSeconds += (now - lastTimerTick) / 1000;
+        lastTimerTick = now;
+        elTime.textContent = formatDuration(Math.floor(currentRun.durationSeconds));
+    }
 }
 
 function stopRun() {
-    isRecording = false;
+    if (!confirm('End and save this run?')) return;
+    
+    runState = 'idle';
     clearInterval(timerInterval);
 
     btnStartRun.classList.remove('hidden');
+    btnPauseRun.classList.add('hidden');
     btnStopRun.classList.add('hidden');
     runStatusText.classList.add('hidden');
+    
+    // Reset Pause button to original state for next run
+    btnPauseRun.innerHTML = '⏸ Pause';
+    btnPauseRun.classList.replace('bg-green-500', 'bg-yellow-500');
+    btnPauseRun.classList.replace('hover:bg-green-400', 'hover:bg-yellow-400');
+    runStatusText.classList.replace('text-yellow-400', 'text-green-400');
 
     // Calculate metrics and save
     const avgSpeed = currentRun.speeds.length > 0 
@@ -563,7 +610,7 @@ function stopRun() {
         : 0;
 
     const sessionData = {
-        durationSeconds: currentRun.durationSeconds,
+        durationSeconds: Math.floor(currentRun.durationSeconds),
         distance: currentRun.distance,
         avgSpeed: avgSpeed,
         calories: currentRun.calories
@@ -582,6 +629,7 @@ btnConnect.addEventListener('click', connectToTreadmill);
 btnSimulate.addEventListener('click', toggleSimulation);
 btnDisconnect.addEventListener('click', disconnectTreadmill);
 btnStartRun.addEventListener('click', startRun);
+btnPauseRun.addEventListener('click', pauseRun);
 btnStopRun.addEventListener('click', stopRun);
 
 btnMachineStart.addEventListener('click', startMachine);
@@ -782,8 +830,8 @@ function handleGpxFile(file) {
         alert("Please select a valid .gpx file.");
         return;
     }
-    if (isRecording) {
-        alert("Cannot load a new route while recording.");
+    if (runState !== 'idle') {
+        alert("Cannot load a new route while recording or paused.");
         return;
     }
     
