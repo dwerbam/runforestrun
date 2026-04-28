@@ -22,8 +22,13 @@ const machineControlsPanel = document.getElementById('machine-controls');
 const btnMachineStart = document.getElementById('btn-machine-start');
 const btnMachinePause = document.getElementById('btn-machine-pause');
 const btnMachineStop = document.getElementById('btn-machine-stop');
-const btnSetSpeed = document.getElementById('btn-set-speed');
-const inputSpeed = document.getElementById('input-speed');
+
+const displayTargetSpeed = document.getElementById('display-target-speed');
+const btnSpeedDown = document.getElementById('btn-speed-down');
+const btnSpeedUp = document.getElementById('btn-speed-up');
+const btnQuickSpeeds = document.querySelectorAll('.btn-quick-speed');
+let currentTargetSpeed = 5.0;
+
 const btnSetIncline = document.getElementById('btn-set-incline');
 const inputIncline = document.getElementById('input-incline');
 const cmdStatus = document.getElementById('machine-cmd-status');
@@ -234,17 +239,19 @@ async function stopMachine() {
     showCmdStatus('Sent Stop command.');
 }
 
-async function setMachineSpeed() {
-    let speedKmh = parseFloat(inputSpeed.value);
-    if (isNaN(speedKmh)) return;
+async function setMachineSpeed(speed) {
+    if (speed !== undefined) {
+         currentTargetSpeed = Math.max(1.0, Math.min(22.0, speed));
+         displayTargetSpeed.textContent = currentTargetSpeed.toFixed(1);
+    }
     
     // Resolution is 0.01 km/h. Example: 6.5 km/h -> 650.
-    const speedInt = Math.round(speedKmh * 100);
+    const speedInt = Math.round(currentTargetSpeed * 100);
     const lowByte = speedInt & 0xFF;
     const highByte = (speedInt >> 8) & 0xFF;
     
     await sendCommand([0x02, lowByte, highByte]);
-    showCmdStatus(`Sent Speed: ${speedKmh} km/h`);
+    showCmdStatus(`Sent Speed: ${currentTargetSpeed.toFixed(1)} km/h`);
 }
 
 async function setMachineIncline() {
@@ -580,7 +587,13 @@ btnStopRun.addEventListener('click', stopRun);
 btnMachineStart.addEventListener('click', startMachine);
 btnMachinePause.addEventListener('click', pauseMachine);
 btnMachineStop.addEventListener('click', stopMachine);
-btnSetSpeed.addEventListener('click', setMachineSpeed);
+btnSpeedDown.addEventListener('click', () => setMachineSpeed(currentTargetSpeed - 0.1));
+btnSpeedUp.addEventListener('click', () => setMachineSpeed(currentTargetSpeed + 0.1));
+btnQuickSpeeds.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        setMachineSpeed(parseFloat(e.target.getAttribute('data-speed')));
+    });
+});
 btnSetIncline.addEventListener('click', setMachineIncline);
 
 // --- MapLibre Integration (Gamified Virtual Run) ---
@@ -614,7 +627,9 @@ function initMap() {
         container: 'map',
         style: satelliteStyle,
         center: [-0.1276, 51.5072], // Default London
-        zoom: 13
+        zoom: 19,
+        pitch: 80,
+        bearing: 0
     });
 
     map.on('load', () => {
@@ -754,7 +769,53 @@ function calculateDestinationLocation(lng, lat, distanceMeters, bearingDegrees) 
 // --- GPX Parsing & Map Logic ---
 
 let loadedGpxRoute = null; // Array of {lat, lng, ele, cumulativeDistance}
-let cameraMode = 0; // 0: 2D, 1: 3D Bird's Eye, 2: First Person
+let cameraMode = 2; // 0: 2D, 1: 3D Bird's Eye, 2: First Person
+
+// Unified GPX file loader
+const gpxOverlay = document.getElementById('gpx-overlay');
+const dropZone = document.getElementById('drop-zone');
+const overlayInputGpx = document.getElementById('overlay-input-gpx');
+const inputGpx = document.getElementById('input-gpx');
+
+function handleGpxFile(file) {
+    if (!file || !file.name.endsWith('.gpx')) {
+        alert("Please select a valid .gpx file.");
+        return;
+    }
+    if (isRecording) {
+        alert("Cannot load a new route while recording.");
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const xmlString = e.target.result;
+        parseGPX(xmlString);
+        gpxOverlay.classList.add('opacity-0', 'pointer-events-none');
+    };
+    reader.readAsText(file);
+}
+
+// Event Listeners for File Selection
+overlayInputGpx.addEventListener('change', (e) => handleGpxFile(e.target.files[0]));
+inputGpx.addEventListener('change', (e) => handleGpxFile(e.target.files[0]));
+
+// Drag and Drop Events
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('bg-white/10', 'border-white');
+});
+dropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('bg-white/10', 'border-white');
+});
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('bg-white/10', 'border-white');
+    if (e.dataTransfer.files.length > 0) {
+        handleGpxFile(e.dataTransfer.files[0]);
+    }
+});
 
 document.getElementById('btn-toggle-camera').addEventListener('click', (e) => {
     cameraMode = (cameraMode + 1) % 3;
@@ -782,21 +843,7 @@ document.getElementById('btn-toggle-camera').addEventListener('click', (e) => {
     }
 });
 
-document.getElementById('input-gpx').addEventListener('change', (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    if (isRecording) {
-        alert("Cannot load a new route while recording.");
-        return;
-    }
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const xmlString = e.target.result;
-        parseGPX(xmlString);
-    };
-    reader.readAsText(file);
-});
+// (Removed redundant input-gpx event listener)
 
 function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
     const R = 6371e3; // metres
@@ -878,8 +925,88 @@ function parseGPX(xmlString) {
     alert(`Loaded GPX route! Total distance: ${(cumulativeDistance / 1000).toFixed(2)} km`);
 }
 
-// Initialize on load
-document.addEventListener('DOMContentLoaded', initMap);
+// --- HUD & UI Animations ---
+
+const hudTop = document.getElementById('hud-top');
+const hudBottom = document.getElementById('hud-bottom');
+const hudSide = document.getElementById('hud-side');
+const hudHistory = document.getElementById('hud-history');
+const hudSpeed = document.getElementById('hud-speed');
+const btnShowHud = document.getElementById('btn-show-hud');
+
+let isHudVisible = true;
+let isSettingsVisible = false;
+let isHistoryVisible = false;
+
+document.getElementById('btn-toggle-hud').addEventListener('click', () => {
+    isHudVisible = false;
+    hudTop.classList.add('-translate-y-[150%]', 'opacity-0');
+    hudBottom.classList.add('translate-y-[150%]', 'opacity-0');
+    hudSide.classList.add('translate-x-[150%]'); // Hide settings
+    hudHistory.classList.add('-translate-x-[150%]'); // Hide history
+    hudSpeed.classList.add('translate-x-[150%]'); // Hide speed column
+    isSettingsVisible = false;
+    isHistoryVisible = false;
+    
+    // Request fullscreen for full immersion
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.warn(`Could not enable fullscreen: ${err.message}`);
+        });
+    }
+    
+    // Show the minimal return button
+    btnShowHud.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-10');
+});
+
+btnShowHud.addEventListener('click', () => {
+    isHudVisible = true;
+    hudTop.classList.remove('-translate-y-[150%]', 'opacity-0');
+    hudBottom.classList.remove('translate-y-[150%]', 'opacity-0');
+    hudSpeed.classList.remove('translate-x-[150%]'); // Restore speed column
+    
+    // Exit fullscreen
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(err => console.warn(err));
+    }
+    
+    // Hide the minimal return button
+    btnShowHud.classList.add('opacity-0', 'pointer-events-none', 'translate-y-10');
+});
+
+document.getElementById('btn-toggle-settings').addEventListener('click', () => {
+    isSettingsVisible = !isSettingsVisible;
+    if (isSettingsVisible) {
+        hudSide.classList.remove('translate-x-[150%]', 'translate-x-full');
+        hudSide.classList.add('translate-x-0');
+        // Auto-hide history if it's open to prevent clutter
+        if (isHistoryVisible) {
+            isHistoryVisible = false;
+            hudHistory.classList.remove('translate-x-0');
+            hudHistory.classList.add('-translate-x-[150%]');
+        }
+    } else {
+        hudSide.classList.remove('translate-x-0');
+        hudSide.classList.add('translate-x-[150%]');
+    }
+});
+
+document.getElementById('btn-toggle-history').addEventListener('click', () => {
+    isHistoryVisible = !isHistoryVisible;
+    if (isHistoryVisible) {
+        hudHistory.classList.remove('-translate-x-[150%]', '-translate-x-full');
+        hudHistory.classList.add('translate-x-0');
+        // Auto-hide settings if it's open
+        if (isSettingsVisible) {
+            isSettingsVisible = false;
+            hudSide.classList.remove('translate-x-0');
+            hudSide.classList.add('translate-x-[150%]');
+        }
+    } else {
+        hudHistory.classList.remove('translate-x-0');
+        hudHistory.classList.add('-translate-x-[150%]');
+    }
+});
 
 // --- Smoothed Elevation Helper ---
 let lastInclineCmdTime = 0;
@@ -906,3 +1033,6 @@ function getElevationAtDistance(targetDist) {
     }
     return 0;
 }
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', initMap);

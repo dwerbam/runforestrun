@@ -4,170 +4,221 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Treadmill Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         [v-cloak] { display: none; }
-        #map { width: 100%; height: 400px; border-radius: 0.5rem; }
+        body { font-family: 'Montserrat', sans-serif; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
-    <div class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
-        <header class="mb-8 flex justify-between items-center">
-            <div>
-                <h1 class="text-3xl font-bold text-blue-600">RunTracker</h1>
-                <p class="text-sm text-gray-500">FTMS Web Bluetooth App</p>
+<body class="h-screen w-screen overflow-hidden bg-gray-900 text-white selection:bg-white/30">
+    <!-- Fullscreen Map Background -->
+    <div id="map" class="absolute inset-0 z-0"></div>
+
+    <!-- Initial GPX Drop Overlay -->
+    <div id="gpx-overlay" class="absolute inset-0 z-50 bg-gray-900/90 backdrop-blur-xl flex flex-col items-center justify-center transition-opacity duration-700">
+        <div id="drop-zone" class="border-2 border-dashed border-gray-500 rounded-3xl p-12 text-center hover:bg-white/5 hover:border-white transition-colors cursor-pointer flex flex-col items-center justify-center w-11/12 max-w-2xl h-96">
+            <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <h2 class="text-3xl font-bold text-white mb-2">Drop your GPX route here</h2>
+            <p class="text-gray-400 mb-6">You must load a route to start the simulation.</p>
+            <label class="bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 px-8 rounded-full transition duration-300 cursor-pointer shadow-lg shadow-blue-500/30">
+                Browse Files
+                <input type="file" id="overlay-input-gpx" accept=".gpx" class="hidden">
+            </label>
+        </div>
+    </div>
+
+    <!-- HUD Overlay -->
+    <div id="hud-container" class="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 sm:p-6 overflow-hidden">
+        
+        <!-- Top HUD: Real-Time Metrics -->
+        <header id="hud-top" class="pointer-events-auto flex flex-wrap justify-center gap-3 transition-transform duration-700 ease-out transform translate-y-0">
+            <div class="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[110px] shadow-lg">
+                <span class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Speed</span>
+                <div class="flex items-baseline">
+                    <span id="metric-speed" class="text-3xl font-light text-white">0.0</span>
+                    <span class="text-xs text-gray-400 ml-1">km/h</span>
+                </div>
             </div>
-            <div id="bt-status" class="flex items-center">
-                <span id="bt-status-dot" class="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
-                <span id="bt-status-text" class="text-sm font-semibold text-gray-700">Disconnected</span>
+            <div class="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[110px] shadow-lg">
+                <span class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Distance</span>
+                <div class="flex items-baseline">
+                    <span id="metric-distance" class="text-3xl font-light text-white">0.00</span>
+                    <span class="text-xs text-gray-400 ml-1">km</span>
+                </div>
+            </div>
+            <div class="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[110px] shadow-lg">
+                <span class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Time</span>
+                <div class="flex items-baseline">
+                    <span id="metric-time" class="text-3xl font-light text-white">00:00</span>
+                </div>
+            </div>
+            <div class="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[130px] shadow-lg">
+                <span class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Incline / HR</span>
+                <div class="flex items-baseline">
+                    <span id="metric-incline" class="text-3xl font-light text-white">0</span>
+                    <span class="text-xs text-gray-400 mx-1">%</span>
+                    <span class="text-gray-500 mx-2 font-light">|</span>
+                    <span id="metric-hr" class="text-3xl font-light text-white">--</span>
+                    <span class="text-xs text-gray-400 ml-1">bpm</span>
+                </div>
             </div>
         </header>
 
-        <!-- Controls -->
-        <section class="bg-white rounded-lg shadow p-6 mb-8 flex flex-wrap gap-4 items-center">
-            <button id="btn-connect" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200">
-                Connect Treadmill
-            </button>
-            <button id="btn-simulate" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded transition duration-200">
-                Simulate Machine
-            </button>
-            <button id="btn-disconnect" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition duration-200 hidden">
-                Disconnect
-            </button>
+        <!-- Middle Area -->
+        <div class="flex-grow relative w-full h-full pointer-events-none mt-4 mb-4">
             
-            <div class="flex-grow border-l pl-4 ml-2 border-gray-200">
-                <button id="btn-start-run" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition duration-200 opacity-50 cursor-not-allowed" disabled>
-                    Start App Recording
-                </button>
-                <button id="btn-stop-run" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-200 hidden">
-                    Stop App Recording
-                </button>
-            </div>
-            <div id="run-status-text" class="text-sm font-semibold text-green-600 hidden">
-                Recording...
-            </div>
-        </section>
+            <!-- Left Sidebar: History -->
+            <aside id="hud-history" class="pointer-events-auto absolute left-0 top-0 bottom-0 w-full sm:w-[480px] bg-black/50 backdrop-blur-xl border border-white/10 rounded-3xl p-5 shadow-2xl transition-transform duration-700 ease-out transform -translate-x-[150%] flex flex-col">
+                <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+                    <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-widest flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        History
+                    </h2>
+                    <button id="btn-clear-history" class="text-xs bg-red-500/20 text-red-300 hover:bg-red-500/40 px-2 py-1 rounded transition">Clear</button>
+                </div>
+                <div class="overflow-y-auto flex-grow custom-scrollbar">
+                    <table class="w-full text-left text-xs text-gray-400">
+                        <tbody id="history-tbody" class="divide-y divide-white/5">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </aside>
 
-        <!-- Machine Controls (FTMS Control Point) -->
-        <section id="machine-controls" class="bg-white rounded-lg shadow p-6 mb-8 opacity-50 pointer-events-none transition-opacity duration-300">
-            <h2 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Treadmill Motor Controls</h2>
-            
-            <div class="flex flex-wrap gap-4 items-end mb-6">
-                <button id="btn-machine-start" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded transition duration-200">
-                    ▶ Start Motor
-                </button>
-                <button id="btn-machine-pause" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-6 rounded transition duration-200">
-                    ⏸ Pause Motor
-                </button>
-                <button id="btn-machine-stop" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition duration-200">
-                    ⏹ Stop Motor
-                </button>
+            <!-- Right Edge: Vertical Speed Column -->
+            <div id="hud-speed" class="pointer-events-auto absolute right-0 top-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-xl border border-white/10 rounded-full py-3 px-2 flex flex-col items-center gap-1 shadow-2xl transition-transform duration-700 ease-out transform translate-x-0">
+                <button id="btn-speed-up" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full text-white font-bold text-xl transition flex items-center justify-center mb-1">+</button>
+                <div id="display-target-speed" class="text-white font-medium text-sm tracking-widest text-center w-full mb-1">5.0</div>
+                <button id="btn-speed-down" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full text-white font-bold text-xl transition flex items-center justify-center mb-2">-</button>
+                <div class="w-6 h-px bg-white/20 mb-2"></div>
+                <!-- Quick Speeds (Descending) -->
+                <button class="btn-quick-speed w-10 h-10 bg-white/5 hover:bg-white/20 rounded-full text-gray-300 hover:text-white text-xs font-semibold transition flex items-center justify-center" data-speed="18">18</button>
+                <button class="btn-quick-speed w-10 h-10 bg-white/5 hover:bg-white/20 rounded-full text-gray-300 hover:text-white text-xs font-semibold transition flex items-center justify-center" data-speed="16">16</button>
+                <button class="btn-quick-speed w-10 h-10 bg-white/5 hover:bg-white/20 rounded-full text-gray-300 hover:text-white text-xs font-semibold transition flex items-center justify-center" data-speed="14">14</button>
+                <button class="btn-quick-speed w-10 h-10 bg-white/5 hover:bg-white/20 rounded-full text-gray-300 hover:text-white text-xs font-semibold transition flex items-center justify-center" data-speed="12">12</button>
+                <button class="btn-quick-speed w-10 h-10 bg-white/5 hover:bg-white/20 rounded-full text-gray-300 hover:text-white text-xs font-semibold transition flex items-center justify-center" data-speed="10">10</button>
+                <button class="btn-quick-speed w-10 h-10 bg-white/5 hover:bg-white/20 rounded-full text-gray-300 hover:text-white text-xs font-semibold transition flex items-center justify-center" data-speed="8">8</button>
+                <button class="btn-quick-speed w-10 h-10 bg-white/5 hover:bg-white/20 rounded-full text-gray-300 hover:text-white text-xs font-semibold transition flex items-center justify-center" data-speed="6">6</button>
+                <button class="btn-quick-speed w-10 h-10 bg-white/5 hover:bg-white/20 rounded-full text-gray-300 hover:text-white text-xs font-semibold transition flex items-center justify-center" data-speed="4">4</button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Set Speed (km/h)</label>
-                    <div class="flex">
-                        <input type="number" id="input-speed" step="0.1" min="1.0" max="22.0" value="5.0" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-l-md px-3 border">
-                        <button id="btn-set-speed" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded-r-md transition duration-200">
-                            Apply
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Set Incline (%)</label>
-                    <div class="flex">
-                        <input type="number" id="input-incline" step="0.5" min="0" max="15.0" value="0.0" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-l-md px-3 border">
-                        <button id="btn-set-incline" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded-r-md transition duration-200">
-                            Apply
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div id="machine-cmd-status" class="mt-3 text-sm text-gray-500 italic"></div>
-        </section>
-
-        <!-- Real-Time Metrics -->
-        <section class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div class="bg-white rounded-lg shadow p-6 text-center border-t-4 border-blue-500">
-                <h2 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Speed</h2>
-                <div class="flex items-baseline justify-center">
-                    <span id="metric-speed" class="text-3xl font-bold text-gray-900">0.0</span>
-                    <span class="text-sm text-gray-500 ml-1">km/h</span>
-                </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6 text-center border-t-4 border-green-500">
-                <h2 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Distance</h2>
-                <div class="flex items-baseline justify-center">
-                    <span id="metric-distance" class="text-3xl font-bold text-gray-900">0.00</span>
-                    <span class="text-sm text-gray-500 ml-1">km</span>
-                </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6 text-center border-t-4 border-purple-500">
-                <h2 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Time</h2>
-                <div class="flex items-baseline justify-center">
-                    <span id="metric-time" class="text-3xl font-bold text-gray-900">00:00</span>
-                </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6 text-center border-t-4 border-yellow-500">
-                <h2 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Incline / HR</h2>
-                <div class="flex items-baseline justify-center">
-                    <span id="metric-incline" class="text-3xl font-bold text-gray-900">0</span>
-                    <span class="text-sm text-gray-500 mx-1">%</span>
-                    <span class="text-gray-400 mx-1">|</span>
-                    <span id="metric-hr" class="text-3xl font-bold text-gray-900">--</span>
-                    <span class="text-sm text-gray-500 ml-1">bpm</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- Map Visualization -->
-        <section class="bg-white rounded-lg shadow overflow-hidden mb-8">
-            <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-2">
-                <h2 class="text-lg font-bold text-gray-800">Virtual Run Map</h2>
-                <div class="flex items-center flex-wrap gap-2">
-                    <label class="text-sm bg-green-100 text-green-800 hover:bg-green-200 py-1 px-3 rounded transition cursor-pointer font-semibold shadow-sm">
-                        📁 Load GPX
-                        <input type="file" id="input-gpx" accept=".gpx" class="hidden">
-                    </label>
-                    <button id="btn-toggle-camera" class="text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 py-1 px-3 rounded transition shadow-sm font-medium w-32">
-                        📷 2D Map
+            <!-- Right Sidebar: Settings & Controls -->
+            <aside id="hud-side" class="pointer-events-auto absolute right-16 top-0 bottom-0 w-72 bg-black/50 backdrop-blur-xl border border-white/10 rounded-3xl p-5 shadow-2xl transition-transform duration-700 ease-out transform translate-x-[150%] flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+                
+                <!-- App Controls -->
+                <section>
+                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 border-b border-white/10 pb-2">App System</h2>
+                    <button id="btn-simulate" class="w-full bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 font-medium py-2 px-4 rounded-xl transition duration-300 text-sm flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                        Simulate Machine
                     </button>
+                </section>
+
+                <!-- Machine Controls -->
+                <section id="machine-controls" class="opacity-50 pointer-events-none transition-opacity duration-300">
+                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Treadmill Setup</h2>
+                    <div class="flex flex-col gap-2 mb-4">
+                        <button id="btn-machine-start" class="bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-3 rounded-lg transition duration-300 text-xs text-left flex items-center gap-2">
+                            <span>▶</span> Start Motor
+                        </button>
+                        <button id="btn-machine-pause" class="bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-3 rounded-lg transition duration-300 text-xs text-left flex items-center gap-2">
+                            <span>⏸</span> Pause Motor
+                        </button>
+                        <button id="btn-machine-stop" class="bg-red-500/20 hover:bg-red-500/40 text-red-300 font-medium py-2 px-3 rounded-lg transition duration-300 text-xs text-left flex items-center gap-2 border border-red-500/30">
+                            <span>⏹</span> Stop Motor
+                        </button>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Target Incline (%)</label>
+                        <div class="flex">
+                            <input type="number" id="input-incline" step="0.5" min="0" max="15.0" value="0.0" class="bg-black/50 text-white focus:ring-white/50 focus:border-white/50 block w-full text-xs border-white/10 rounded-l-lg px-3 py-2 border outline-none">
+                            <button id="btn-set-incline" class="bg-white/20 hover:bg-white/30 text-white font-medium py-2 px-3 rounded-r-lg transition duration-300 border border-l-0 border-white/10 text-xs">Set</button>
+                        </div>
+                    </div>
+                    
+                    <div id="machine-cmd-status" class="mt-2 text-[10px] text-yellow-400 italic"></div>
+                </section>
+            </aside>
+        </div>
+
+        <!-- Bottom HUD: Main Bar -->
+        <footer id="hud-bottom" class="pointer-events-auto flex flex-col md:flex-row justify-between items-center gap-3 transition-transform duration-700 ease-out transform translate-y-0">
+            
+            <!-- Left: Connection & Record -->
+            <div class="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-2 flex items-center gap-2 shadow-lg">
+                <div class="px-3 flex items-center border-r border-white/10 mr-1">
+                    <span id="bt-status-dot" class="w-2 h-2 rounded-full bg-red-500 mr-2 shadow-[0_0_8px_rgba(239,68,68,0.8)] transition-colors"></span>
+                    <span id="bt-status-text" class="text-[10px] font-semibold text-gray-300 uppercase tracking-wide">Disconnected</span>
+                </div>
+                
+                <button id="btn-connect" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-2 px-4 rounded-xl transition duration-300">
+                    Connect
+                </button>
+                <button id="btn-disconnect" class="bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-2 px-4 rounded-xl transition duration-300 hidden">
+                    Disconnect
+                </button>
+                
+                <div class="w-px h-5 bg-white/10 mx-1"></div>
+                
+                <button id="btn-start-run" class="bg-green-600 hover:bg-green-500 text-white text-sm font-medium py-2 px-5 rounded-xl transition duration-300 opacity-50 cursor-not-allowed" disabled>
+                    Start Run
+                </button>
+                <button id="btn-stop-run" class="bg-red-600 hover:bg-red-500 text-white text-sm font-medium py-2 px-5 rounded-xl transition duration-300 hidden">
+                    Stop Run
+                </button>
+                <div id="run-status-text" class="text-[10px] font-semibold text-green-400 ml-2 hidden animate-pulse uppercase tracking-widest">
+                    Recording
                 </div>
             </div>
-            <div id="map"></div>
-        </section>
 
-        <!-- History -->
-        <section class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-gray-800">Session History</h2>
-                <button id="btn-clear-history" class="text-sm text-red-500 hover:text-red-700">Clear</button>
+            <!-- Right: Map Tools & Toggles -->
+            <div class="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-2 flex items-center gap-2 shadow-lg">
+                <label class="bg-white/10 hover:bg-white/20 text-white text-xs font-medium py-2 px-3 rounded-xl transition duration-300 cursor-pointer flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    Load GPX
+                    <input type="file" id="input-gpx" accept=".gpx" class="hidden">
+                </label>
+                
+                <button id="btn-toggle-camera" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium py-2 px-3 rounded-xl transition duration-300 w-32 text-center">
+                    🎮 First Person
+                </button>
+
+                <div class="w-px h-5 bg-white/10 mx-1"></div>
+                
+                <!-- History Toggle -->
+                <button id="btn-toggle-history" class="bg-white/5 hover:bg-white/10 text-gray-300 p-2 rounded-xl transition duration-300" title="History">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </button>
+
+                <!-- Settings Toggle -->
+                <button id="btn-toggle-settings" class="bg-white/5 hover:bg-white/10 text-gray-300 p-2 rounded-xl transition duration-300" title="Settings">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </button>
+
+                <!-- Hide HUD Toggle -->
+                <button id="btn-toggle-hud" class="bg-white/5 hover:bg-white/10 text-gray-300 p-2 rounded-xl transition duration-300" title="Hide UI">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                </button>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm text-gray-600">
-                    <thead class="bg-gray-50 text-gray-700 uppercase">
-                        <tr>
-                            <th class="px-6 py-3">Date</th>
-                            <th class="px-6 py-3">Duration</th>
-                            <th class="px-6 py-3">Distance</th>
-                            <th class="px-6 py-3">Avg Speed</th>
-                            <th class="px-6 py-3">Calories</th>
-                        </tr>
-                    </thead>
-                    <tbody id="history-tbody" class="divide-y divide-gray-200">
-                        <!-- Rows will be populated by JS -->
-                        <tr>
-                            <td colspan="5" class="px-6 py-4 text-center text-gray-500 italic">No runs recorded yet.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+        </footer>
     </div>
 
+    <!-- Re-appear HUD Button (Hidden when HUD is visible) -->
+    <button id="btn-show-hud" class="absolute bottom-6 right-6 z-20 bg-black/50 backdrop-blur-md border border-white/10 text-white p-3 rounded-full shadow-2xl transition duration-500 opacity-0 pointer-events-none transform translate-y-10 hover:bg-black/70">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>
+    </button>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    </style>
     <script src="storage.js"></script>
     <script src="app.js"></script>
 </body>
