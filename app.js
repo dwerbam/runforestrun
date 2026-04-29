@@ -56,6 +56,11 @@ let currentRun = {
 // --- Bluetooth Connection ---
 
 async function connectToTreadmill() {
+    if (!navigator.bluetooth) {
+        alert("Web Bluetooth API is not available.\n\nMake sure you are using a supported browser (Chrome/Edge) and serving this page over HTTPS (or localhost).");
+        return;
+    }
+
     try {
         console.log('Requesting Bluetooth Device...');
         bluetoothDevice = await navigator.bluetooth.requestDevice({
@@ -572,14 +577,35 @@ function updateDashboard(data) {
                                  }
                              }
                              
-                             // --- MAGIC: Auto-Speed from Training Profile (Throttled) ---
+                             // --- MAGIC: Auto-Speed from Training Profile (Throttled & Safe) ---
                              if (currentTrainingProfile && runState === 'recording') {
-                                 if (now - lastSpeedCmdTime > SPEED_COOLDOWN_MS) {
-                                     const suggestedSpeed = currentTrainingProfile[currentIndex];
-                                     if (suggestedSpeed && Math.abs(suggestedSpeed - currentTargetSpeed) >= 0.5) {
-                                         console.log(`Auto-Speed Update: Profile changing speed to ${suggestedSpeed} km/h`);
-                                         setMachineSpeed(suggestedSpeed);
-                                         lastSpeedCmdTime = now;
+                                 const suggestedSpeed = currentTrainingProfile[currentIndex];
+                                 
+                                 // Check if we need to change speed (difference of at least 0.1 km/h)
+                                 if (suggestedSpeed && Math.abs(suggestedSpeed - currentTargetSpeed) >= 0.1) {
+                                     
+                                     // Safety Ramp-Up Logic:
+                                     // If the treadmill is currently running very slow (just started) and the profile demands a high speed,
+                                     // we bypass the 60s cooldown, but we ONLY increment speed by +1.0 km/h max per tick to prevent jerky acceleration.
+                                     let isRampingUp = false;
+                                     let speedToApply = suggestedSpeed;
+                                     
+                                     if (suggestedSpeed - currentTargetSpeed > 1.0) {
+                                         // It wants to jump too fast. Cap the acceleration to +1.0 km/h per command.
+                                         speedToApply = currentTargetSpeed + 1.0;
+                                         isRampingUp = true;
+                                     }
+                                     
+                                     // Send command if cooldown passed OR if we are safely ramping up
+                                     if (isRampingUp || now - lastSpeedCmdTime > SPEED_COOLDOWN_MS) {
+                                         console.log(`Auto-Speed Update: Changing speed from ${currentTargetSpeed} to ${speedToApply.toFixed(1)} km/h`);
+                                         setMachineSpeed(speedToApply);
+                                         
+                                         if (!isRampingUp) {
+                                            // Only reset the 60s lock if it was a normal profile change, not a ramp-up microstep.
+                                            // If ramping up, we allow the next tick (1 second later) to increment another +1.0 km/h.
+                                            lastSpeedCmdTime = now;
+                                         }
                                      }
                                  }
                              }
@@ -763,7 +789,18 @@ function startRun() {
             timerInterval = setInterval(updateTimer, 1000);
             
             if (controlCharacteristic) {
-                startMachine(); // Auto-send physical start to the treadmill
+                // Safety first: Always start the machine at a safe 2.0 km/h walking pace, regardless of training profile
+                currentTargetSpeed = 2.0;
+                displayTargetSpeed.textContent = currentTargetSpeed.toFixed(1);
+                
+                // 1. Send the mechanical start command
+                startMachine().then(() => {
+                    // 2. Explicitly force the speed to 2.0 km/h right after starting
+                    setTimeout(() => setMachineSpeed(2.0), 1000);
+                });
+                
+                // Reset cooldowns so the auto-speed logic waits a bit before ramping up
+                lastSpeedCmdTime = Date.now(); 
             }
         }
     }, 1000);
