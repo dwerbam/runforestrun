@@ -355,8 +355,32 @@ const motOverlay = document.getElementById('motivational-overlay');
 const motText = document.getElementById('motivational-text');
 const selectLang = document.getElementById('select-lang');
 
+const btnToggleMute = document.getElementById('btn-toggle-mute');
+const iconSoundOn = document.getElementById('icon-sound-on');
+const iconSoundOff = document.getElementById('icon-sound-off');
+
 let currentLang = localStorage.getItem('coachLanguage') || 'en';
 selectLang.value = currentLang;
+
+// Mute System
+let isMuted = localStorage.getItem('coachMuted') === 'true';
+
+function updateMuteUI() {
+    if (isMuted) {
+        iconSoundOn.classList.add('hidden');
+        iconSoundOff.classList.remove('hidden');
+    } else {
+        iconSoundOn.classList.remove('hidden');
+        iconSoundOff.classList.add('hidden');
+    }
+}
+updateMuteUI();
+
+btnToggleMute.addEventListener('click', () => {
+    isMuted = !isMuted;
+    localStorage.setItem('coachMuted', isMuted);
+    updateMuteUI();
+});
 
 selectLang.addEventListener('change', (e) => {
     currentLang = e.target.value;
@@ -384,7 +408,7 @@ const phrases = {
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playNotificationSound() {
-    if (currentLang === 'none') return;
+    if (currentLang === 'none' || isMuted) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
@@ -1277,8 +1301,9 @@ const verticalLinePlugin = {
         // Map the distance to the pixel X coordinate on the chart
         const xPos = xAxis.left + (xAxis.right - xAxis.left) * (currentDistKm / totalDistKm);
         
-        const topY = Math.min(yAxis1.top, yAxis2.top);
-        const bottomY = Math.max(yAxis1.bottom, yAxis2.bottom);
+        // Ensure the line draws from the chart area top, NOT the absolute canvas top (which covers the legend)
+        const topY = chart.chartArea.top;
+        const bottomY = chart.chartArea.bottom;
 
         ctx.save();
         ctx.beginPath();
@@ -1357,24 +1382,49 @@ function updatePreviewChart() {
             labels: distances,
             datasets: [
                 {
-                    label: 'Elevation', data: elevations,
-                    borderColor: '#3B82F6', backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                    yAxisID: 'yElevation', fill: true, tension: 0.4, pointRadius: 0
+                    label: 'Suggested Speed', data: profile,
+                    type: 'bar', backgroundColor: 'rgba(16, 185, 129, 0.25)', // Transparent Green
+                    yAxisID: 'ySpeed', barPercentage: 1.0, categoryPercentage: 1.0, order: 3 // Behind mountain
                 },
                 {
-                    label: 'Suggested Speed', data: profile,
-                    type: 'bar', backgroundColor: 'rgba(16, 185, 129, 0.6)',
-                    yAxisID: 'ySpeed', barPercentage: 1.0, categoryPercentage: 1.0
+                    label: 'Elevation', data: elevations,
+                    borderColor: '#3B82F6', backgroundColor: 'rgba(59, 130, 246, 0.4)', // Slightly more opaque blue
+                    yAxisID: 'yElevation', fill: true, tension: 0.4, pointRadius: 0, order: 2 // Middle
+                },
+                {
+                    label: 'Treadmill Incline (%)',
+                    data: generateMachineInclineProfile(loadedGpxRoute),
+                    borderColor: '#FFFFFF', // High contrast White instead of Yellow
+                    backgroundColor: 'transparent',
+                    borderWidth: 3, borderDash: [6, 4],
+                    yAxisID: 'yIncline', type: 'line', stepped: true, pointRadius: 0, order: 1, // On top
+                    // Add a heavy drop shadow so it pops against any background
+                    segment: {
+                        borderColor: ctx => '#FFFFFF'
+                    }
                 }
             ]
         },
         options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { 
+                legend: { 
+                    display: true, 
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        color: '#D1D5DB', // Tailwind Gray-300
+                        font: { family: "'Montserrat', sans-serif", size: 10 },
+                        usePointStyle: true,
+                        boxWidth: 8
+                    }
+                } 
+            },
             scales: {
                 x: { display: false },
-                yElevation: { type: 'linear', position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF' } },
-                ySpeed: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#34D399' }, suggestedMin: 0 }
+                yElevation: { type: 'linear', position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF', font: { size: 10 } } },
+                ySpeed: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#34D399', font: { size: 10 } }, suggestedMin: 0 },
+                yIncline: { type: 'linear', display: false, position: 'right', suggestedMin: -5, suggestedMax: 15 }
             }
         }
     });
@@ -1418,23 +1468,38 @@ function renderProfileChart() {
             labels: distances,
             datasets: [
                 {
-                    label: 'Elevation (m)',
-                    data: elevations,
-                    borderColor: '#3B82F6', // Blue
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    yAxisID: 'yElevation',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 0
-                },
-                {
                     label: 'Suggested Speed (km/h)',
                     data: currentTrainingProfile,
                     type: 'bar',
-                    backgroundColor: 'rgba(16, 185, 129, 0.5)', // Green
+                    backgroundColor: 'rgba(16, 185, 129, 0.25)', // Transparent Green
                     yAxisID: 'ySpeed',
                     barPercentage: 1.0,
-                    categoryPercentage: 1.0
+                    categoryPercentage: 1.0,
+                    order: 3 // Behind
+                },
+                {
+                    label: 'Terrain Elevation (m)',
+                    data: elevations,
+                    borderColor: '#3B82F6', // Blue
+                    backgroundColor: 'rgba(59, 130, 246, 0.4)', // Slightly more opaque blue
+                    yAxisID: 'yElevation',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    order: 2 // Middle
+                },
+                {
+                    label: 'Treadmill Incline (%)',
+                    data: generateMachineInclineProfile(loadedGpxRoute),
+                    borderColor: '#FFFFFF', // High contrast White
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
+                    borderDash: [6, 4], // Dashed line
+                    yAxisID: 'yIncline',
+                    type: 'line',
+                    stepped: true, // Treadmills move in steps
+                    pointRadius: 0,
+                    order: 1 // On top
                 }
             ]
         },
@@ -1442,22 +1507,76 @@ function renderProfileChart() {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { display: false } },
+            plugins: { 
+                legend: { 
+                    display: true,
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        color: '#D1D5DB',
+                        font: { family: "'Montserrat', sans-serif", size: 10 },
+                        usePointStyle: true,
+                        boxWidth: 8
+                    }
+                } 
+            },
             scales: {
                 x: { display: false },
                 yElevation: { 
                     type: 'linear', display: true, position: 'left',
                     grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#9CA3AF' }
+                    ticks: { color: '#9CA3AF', font: { size: 10 } }
                 },
                 ySpeed: { 
                     type: 'linear', display: true, position: 'right',
                     grid: { drawOnChartArea: false },
-                    ticks: { color: '#34D399' }
+                    ticks: { color: '#34D399', font: { size: 10 } }
+                },
+                yIncline: {
+                    type: 'linear', display: false, position: 'right',
+                    suggestedMin: -5, suggestedMax: 15 
                 }
             }
         }
     });
+}
+
+function generateMachineInclineProfile(route) {
+    if (!route || route.length === 0) return [];
+    let profile = [];
+    
+    // We simulate the logic that the treadmill will run over time
+    // LOOKAHEAD_METERS is 150m, and we update every 1 minute approx.
+    let currentIncline = 0;
+    let lastChangeDist = 0;
+
+    for (let i = 0; i < route.length; i++) {
+        const pt = route[i];
+        
+        // Only allow changes if distance passed is roughly equivalent to our cooldown
+        // (Assuming ~150m per minute)
+        if (pt.cumulativeDistance - lastChangeDist >= 150 || i === 0) {
+            // Find future elevation 150m ahead
+            let targetDist = pt.cumulativeDistance + 150;
+            let futureEle = pt.ele;
+            for (let j = i + 1; j < route.length; j++) {
+                if (route[j].cumulativeDistance >= targetDist) {
+                    futureEle = route[j].ele;
+                    break;
+                }
+            }
+            
+            let gradientPct = ((futureEle - pt.ele) / 150) * 100;
+            gradientPct = Math.max(0, Math.min(15.0, gradientPct)); // Cap 0 to 15
+            currentIncline = Math.round(gradientPct * 2) / 2; // Round to nearest 0.5
+            
+            lastChangeDist = pt.cumulativeDistance;
+        }
+        
+        profile.push(currentIncline);
+    }
+    
+    return profile;
 }
 
 // --- HUD & UI Animations ---
