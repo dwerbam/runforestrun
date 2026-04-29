@@ -369,14 +369,16 @@ const phrases = {
         speed_down: ["Easy tiger, slowing down...", "Recovery time!", "Breathe! Speed decreasing.", "Take it easy."],
         hill_up: ["Oh boy... Hill approaching!", "Get ready to climb!", "Gravity is just a theory!", "Push through the incline!"],
         hill_down: ["What goes up, must come down!", "Wheeeeee! Downhill!", "Free speed! Incline dropping."],
-        start_3: "3...", start_2: "2...", start_1: "1...", start_go: "GO!"
+        start_3: "3...", start_2: "2...", start_1: "1...", start_go: "GO!",
+        hr_warning: "Heart rate too high! Dropping speed."
     },
     es: {
         speed_up: ["¡A volar!", "¡Métele nitro!", "¡Modo turbo activado!", "¡Siente la brisa!"],
         speed_down: ["Tranquilo fiera, bajando velocidad...", "¡Recupera el aliento!", "¡Respira! Aflojando el paso.", "Tómatelo con calma."],
         hill_up: ["Ay mamá... ¡Se viene una cuesta!", "¡A escalar se ha dicho!", "¡La gravedad es un mito!", "¡Sube con fuerza!"],
         hill_down: ["¡Todo lo que sube, baja!", "¡Wiiii! ¡Cuesta abajo!", "¡Velocidad gratis! Disfruta la bajada."],
-        start_3: "3...", start_2: "2...", start_1: "1...", start_go: "¡VAMOS!"
+        start_3: "3...", start_2: "2...", start_1: "1...", start_go: "¡VAMOS!",
+        hr_warning: "¡Pulsaciones al límite! Bajando velocidad."
     }
 };
 
@@ -436,6 +438,9 @@ function showMotivationalMessage(type) {
 
 // --- Dashboard & Run State ---
 
+let lastHrCmdTime = 0;
+const HR_COOLDOWN_MS = 30000; // 30 seconds before reducing speed again
+
 function updateDashboard(data) {
     if (data.speed !== undefined) {
         elSpeed.textContent = data.speed.toFixed(1);
@@ -448,6 +453,24 @@ function updateDashboard(data) {
 
     if (data.heartRate !== undefined) {
         elHr.textContent = data.heartRate;
+        
+        // --- Heart Rate Driven Pace (Zone 5 Protection) ---
+        if (runState === 'recording') {
+            const maxHrInput = document.getElementById('input-max-hr');
+            const maxHr = maxHrInput ? (parseInt(maxHrInput.value) || 170) : 170;
+            
+            if (data.heartRate >= maxHr) {
+                const now = Date.now();
+                if (now - lastHrCmdTime > HR_COOLDOWN_MS) {
+                    console.log(`HR Control: HR ${data.heartRate} exceeds max ${maxHr}. Reducing speed by 0.5 km/h.`);
+                    showMotivationalMessage('hr_warning');
+                    
+                    // Reduce speed by 0.5 km/h, but never drop below 2.0 km/h
+                    setMachineSpeed(Math.max(2.0, currentTargetSpeed - 0.5));
+                    lastHrCmdTime = now;
+                }
+            }
+        }
     }
 
     if (data.totalDistance !== undefined) {
@@ -1010,7 +1033,6 @@ let cameraMode = 2; // 0: 2D, 1: 3D Bird's Eye, 2: First Person
 const gpxOverlay = document.getElementById('gpx-overlay');
 const dropZone = document.getElementById('drop-zone');
 const overlayInputGpx = document.getElementById('overlay-input-gpx');
-const inputGpx = document.getElementById('input-gpx');
 
 function handleGpxFile(file) {
     if (!file || !file.name.endsWith('.gpx')) {
@@ -1038,7 +1060,6 @@ function handleGpxFile(file) {
 
 // Event Listeners for File Selection
 overlayInputGpx.addEventListener('change', (e) => handleGpxFile(e.target.files[0]));
-inputGpx.addEventListener('change', (e) => handleGpxFile(e.target.files[0]));
 
 document.querySelectorAll('.btn-preset-gpx').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -1102,7 +1123,13 @@ document.getElementById('btn-toggle-camera').addEventListener('click', (e) => {
     }
 });
 
-// (Removed redundant input-gpx event listener)
+document.getElementById('btn-open-gpx-overlay').addEventListener('click', () => {
+    if (runState !== 'idle') {
+        alert("Cannot load a new route while recording or paused. Please Stop the run first.");
+        return;
+    }
+    gpxOverlay.classList.remove('opacity-0', 'pointer-events-none');
+});
 
 function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
     const R = 6371e3; // metres
@@ -1131,6 +1158,35 @@ function calculateBearing(lat1, lng1, lat2, lng2) {
     
     let bearing = toDeg(Math.atan2(y, x));
     return (bearing + 360) % 360;
+}
+
+function applyKalmanFilter(route) {
+    if (!route || route.length === 0) return;
+    const R = 32; // Measurement noise (higher = smoother, ignores micro hills)
+    const Q = 1;  // Process noise (how fast it adapts to real changes)
+    
+    let cov = NaN;
+    let x = NaN; // Estimated elevation
+    
+    for (let i = 0; i < route.length; i++) {
+        const z = route[i].ele;
+        if (isNaN(x)) {
+            x = z;
+            cov = 1;
+        } else {
+            // Prediction
+            const predX = x;
+            const predCov = cov + Q;
+            
+            // Kalman Gain
+            const K = predCov / (predCov + R);
+            
+            // Update
+            x = predX + K * (z - predX);
+            cov = (1 - K) * predCov;
+        }
+        route[i].ele = x; // Overwrite raw data with smoothed data
+    }
 }
 
 function parseGPX(xmlString) {
@@ -1162,6 +1218,9 @@ function parseGPX(xmlString) {
         loadedGpxRoute.push({ lat, lng, ele, cumulativeDistance });
         geoJsonCoords.push([lng, lat]);
     }
+
+    // Apply Kalman Filter to remove micro-hills
+    applyKalmanFilter(loadedGpxRoute);
 
     // Draw the planned route
     map.getSource('planned-route').setData({

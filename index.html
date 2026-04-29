@@ -210,6 +210,10 @@
                             <option value="none">None (Disabled)</option>
                         </select>
                     </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Max Heart Rate (Zone 5)</label>
+                        <input type="number" id="input-max-hr" min="100" max="220" value="175" class="bg-black/50 text-white border border-white/10 rounded-lg px-3 py-2 w-full text-xs outline-none focus:border-blue-500">
+                    </div>
                     <button id="btn-simulate" class="w-full bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 font-medium py-2 px-4 rounded-xl transition duration-300 text-sm flex items-center justify-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                         Simulate Machine
@@ -279,11 +283,10 @@
 
             <!-- Right: Map Tools & Toggles -->
             <div class="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-2 flex items-center gap-2 shadow-lg">
-                <label class="bg-white/10 hover:bg-white/20 text-white text-xs font-medium py-2 px-3 rounded-xl transition duration-300 cursor-pointer flex items-center gap-2">
+                <button id="btn-open-gpx-overlay" class="bg-white/10 hover:bg-white/20 text-white text-xs font-medium py-2 px-3 rounded-xl transition duration-300 flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                     Load GPX
-                    <input type="file" id="input-gpx" accept=".gpx" class="hidden">
-                </label>
+                </button>
                 
                 <button id="btn-toggle-camera" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium py-2 px-3 rounded-xl transition duration-300 w-32 text-center">
                     🎮 First Person

@@ -7,8 +7,8 @@
 
 ## 2. Training Algorithms
 - [ ] **User-Defined Intervals:** Allow users to build their own custom workout blocks in the UI (e.g., 2km at 10km/h, 500m at 14km/h) instead of relying solely on the GPX altimetry.
-- [ ] **Heart Rate Driven Pace:** If the treadmill sends Heart Rate data (`0x2ACD`), dynamically lower the speed if the user's HR enters the red zone (Zone 5).
-- [ ] **Elevation Smoothing refinement:** Use an advanced low-pass filter (e.g., Kalman filter) on the GPX elevation data array right after loading to completely eliminate micro-hills before passing it to the auto-incline logic.
+- [x] **Heart Rate Driven Pace:** If the treadmill sends Heart Rate data (`0x2ACD`), dynamically lower the speed if the user's HR enters the red zone (Zone 5).
+- [x] **Elevation Smoothing refinement:** Use an advanced low-pass filter (e.g., Kalman filter) on the GPX elevation data array right after loading to completely eliminate micro-hills before passing it to the auto-incline logic.
 
 ## 3. Social & Gamification
 - [ ] **Ghost Runners:** Load a secondary GPX of a previous run (or a friend's run) and display a "Ghost" avatar on the map to race against.
