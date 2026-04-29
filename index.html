@@ -10,6 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         [v-cloak] { display: none; }
         body { font-family: 'Montserrat', sans-serif; }
@@ -29,6 +30,64 @@
                 Browse Files
                 <input type="file" id="overlay-input-gpx" accept=".gpx" class="hidden">
             </label>
+        </div>
+    </div>
+
+    <!-- Training Mode Modal -->
+    <div id="training-modal" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex-col items-center justify-center transition-opacity duration-500 opacity-0 p-4">
+        <div class="bg-gray-900 border border-white/10 rounded-3xl p-6 md:p-8 max-w-4xl w-full shadow-2xl flex flex-col md:flex-row gap-8">
+            
+            <!-- Left: Settings -->
+            <div class="md:w-1/2 flex flex-col">
+                <h2 class="text-2xl font-bold mb-2">Route Loaded!</h2>
+                <p class="text-gray-400 text-sm mb-6">Configure your training profile.</p>
+                
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Target Base Speed (km/h)</label>
+                <div class="flex items-center justify-between bg-black/50 border border-white/10 rounded-xl p-2 mb-6">
+                    <button id="btn-modal-speed-down" class="w-12 h-12 flex items-center justify-center text-white hover:bg-white/10 rounded-lg transition text-2xl font-bold">-</button>
+                    <div class="text-2xl font-light text-white w-16 text-center" id="modal-display-speed">8.0</div>
+                    <button id="btn-modal-speed-up" class="w-12 h-12 flex items-center justify-center text-white hover:bg-white/10 rounded-lg transition text-2xl font-bold">+</button>
+                </div>
+                
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Training Mode</label>
+                <div class="flex flex-col gap-2 mb-4">
+                    <label class="flex items-center p-3 border border-white/10 rounded-xl cursor-pointer hover:bg-white/5 transition">
+                        <input type="radio" name="training-mode" value="endurance" class="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 focus:ring-blue-600 focus:ring-2" checked>
+                        <div class="ml-3">
+                            <span class="block text-sm font-semibold">Endurance (Steady)</span>
+                            <span class="block text-[10px] text-gray-400">10% warm-up and cool-down zones.</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center p-3 border border-white/10 rounded-xl cursor-pointer hover:bg-white/5 transition">
+                        <input type="radio" name="training-mode" value="dynamic" class="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 focus:ring-blue-600 focus:ring-2">
+                        <div class="ml-3">
+                            <span class="block text-sm font-semibold">Dynamic Hills</span>
+                            <span class="block text-[10px] text-gray-400">Slows on climbs, recovers after peaks.</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center p-3 border border-white/10 rounded-xl cursor-pointer hover:bg-white/5 transition">
+                        <input type="radio" name="training-mode" value="intervals" class="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 focus:ring-blue-600 focus:ring-2">
+                        <div class="ml-3">
+                            <span class="block text-sm font-semibold">Fartlek Intervals</span>
+                            <span class="block text-[10px] text-gray-400">1km fast bursts with 500m recovery.</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Right: Preview & Apply -->
+            <div class="md:w-1/2 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Live Profile Preview</h2>
+                    <div class="w-full bg-black/30 rounded-xl border border-white/10 p-3 h-48 md:h-64 relative mb-6">
+                        <canvas id="modalProfileChart"></canvas>
+                    </div>
+                </div>
+                <button id="btn-apply-training" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-4 rounded-xl transition duration-300 text-lg shadow-lg shadow-blue-500/30">
+                    Start Session
+                </button>
+            </div>
+            
         </div>
     </div>
 
@@ -72,6 +131,17 @@
         <!-- Middle Area -->
         <div class="flex-grow relative w-full h-full pointer-events-none mt-4 mb-4">
             
+            <!-- Top Edge: Profile Chart -->
+            <div id="hud-chart-panel" class="pointer-events-auto absolute left-1/2 -translate-x-1/2 top-4 w-full max-w-4xl h-56 bg-black/70 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl transition-all duration-700 ease-out transform -translate-y-[150%] opacity-0 flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xs font-semibold text-gray-300 uppercase tracking-widest" id="chart-title">Training Profile</h2>
+                    <button id="btn-change-mode" class="text-xs bg-blue-600/30 text-blue-200 hover:bg-blue-600/50 px-3 py-1.5 rounded-lg transition font-semibold">Change Mode</button>
+                </div>
+                <div class="flex-grow relative w-full">
+                    <canvas id="profileChart"></canvas>
+                </div>
+            </div>
+
             <!-- Left Sidebar: History -->
             <aside id="hud-history" class="pointer-events-auto absolute left-0 top-0 bottom-0 w-full sm:w-[480px] bg-black/50 backdrop-blur-xl border border-white/10 rounded-3xl p-5 shadow-2xl transition-transform duration-700 ease-out transform -translate-x-[150%] flex flex-col">
                 <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
@@ -196,6 +266,11 @@
 
                 <div class="w-px h-5 bg-white/10 mx-1"></div>
                 
+                <!-- Profile Toggle -->
+                <button id="btn-toggle-profile" class="bg-white/5 hover:bg-white/10 text-gray-300 p-2 rounded-xl transition duration-300" title="Elevation & Speed Profile">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                </button>
+
                 <!-- History Toggle -->
                 <button id="btn-toggle-history" class="bg-white/5 hover:bg-white/10 text-gray-300 p-2 rounded-xl transition duration-300" title="History">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -225,6 +300,7 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
     </style>
     <script src="storage.js"></script>
+    <script src="training.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -430,7 +430,7 @@ function updateDashboard(data) {
                                  const targetIncline = Math.round(gradientPct * 2) / 2; 
                                  const currentDisplayIncline = parseFloat(elIncline.textContent);
                                  
-                                 if (!isNaN(currentDisplayIncline) && Math.abs(currentDisplayIncline - targetIncline) >= 0.5) {
+                             if (!isNaN(currentDisplayIncline) && Math.abs(currentDisplayIncline - targetIncline) >= 0.5) {
                                      // Update the UI Input and trigger the command if connected
                                      inputIncline.value = targetIncline.toFixed(1);
                                      if (controlCharacteristic) {
@@ -438,6 +438,18 @@ function updateDashboard(data) {
                                      }
                                      lastInclineCmdTime = now;
                                      console.log(`Auto-Incline Update: Smoothed target set to ${targetIncline}% (Raw Gradient: ${gradientPct.toFixed(2)}%)`);
+                                 }
+                             }
+                             
+                             // --- MAGIC: Auto-Speed from Training Profile (Throttled) ---
+                             if (currentTrainingProfile && runState === 'recording') {
+                                 if (now - lastSpeedCmdTime > SPEED_COOLDOWN_MS) {
+                                     const suggestedSpeed = currentTrainingProfile[currentIndex];
+                                     if (suggestedSpeed && Math.abs(suggestedSpeed - currentTargetSpeed) >= 0.5) {
+                                         console.log(`Auto-Speed Update: Profile changing speed to ${suggestedSpeed} km/h`);
+                                         setMachineSpeed(suggestedSpeed);
+                                         lastSpeedCmdTime = now;
+                                     }
                                  }
                              }
                          }
@@ -644,6 +656,16 @@ let startCoordinates = null; // [lng, lat]
 let currentRunnerPosition = null; // [lng, lat]
 let currentRunnerBearing = 0;
 
+// --- Training Mode Variables ---
+let currentTrainingProfile = null; // Array of speeds matching loadedGpxRoute
+let profileChart = null;
+let currentTrainingMode = 'endurance';
+let currentBaseSpeed = 8.0;
+
+let modalTargetSpeed = 8.0;
+let modalChartInstance = null;
+const displayModalSpeed = document.getElementById('modal-display-speed');
+
 // A realistic satellite tile style for a videogame/flight-simulator feel
 const satelliteStyle = {
     "version": 8,
@@ -845,6 +867,11 @@ function handleGpxFile(file) {
         const xmlString = e.target.result;
         parseGPX(xmlString);
         gpxOverlay.classList.add('opacity-0', 'pointer-events-none');
+        document.getElementById('training-modal').classList.remove('hidden');
+        // Small delay to allow display block to render before opacity transition
+        setTimeout(() => {
+            document.getElementById('training-modal').classList.remove('opacity-0');
+        }, 10);
     };
     reader.readAsText(file);
 }
@@ -975,7 +1002,170 @@ function parseGPX(xmlString) {
     
     map.fitBounds(bounds, { padding: 40 });
     
-    alert(`Loaded GPX route! Total distance: ${(cumulativeDistance / 1000).toFixed(2)} km`);
+    // Update live preview in modal as soon as file loads
+    updatePreviewChart();
+}
+
+// --- Chart & Training Logic ---
+
+const hudChartPanel = document.getElementById('hud-chart-panel');
+let isProfileVisible = false;
+
+document.getElementById('btn-toggle-profile').addEventListener('click', () => {
+    isProfileVisible = !isProfileVisible;
+    if (isProfileVisible) {
+        hudChartPanel.classList.remove('-translate-y-[150%]', 'opacity-0');
+    } else {
+        hudChartPanel.classList.add('-translate-y-[150%]', 'opacity-0');
+    }
+});
+
+document.getElementById('btn-change-mode').addEventListener('click', () => {
+    document.getElementById('training-modal').classList.remove('hidden');
+    setTimeout(() => {
+        document.getElementById('training-modal').classList.remove('opacity-0');
+        updatePreviewChart();
+    }, 10);
+});
+
+// Modal Speed Controls (iPad friendly)
+document.getElementById('btn-modal-speed-down').addEventListener('click', () => {
+    modalTargetSpeed = Math.max(3.0, modalTargetSpeed - 0.5);
+    displayModalSpeed.textContent = modalTargetSpeed.toFixed(1);
+    updatePreviewChart();
+});
+
+document.getElementById('btn-modal-speed-up').addEventListener('click', () => {
+    modalTargetSpeed = Math.min(20.0, modalTargetSpeed + 0.5);
+    displayModalSpeed.textContent = modalTargetSpeed.toFixed(1);
+    updatePreviewChart();
+});
+
+document.querySelectorAll('input[name="training-mode"]').forEach(radio => {
+    radio.addEventListener('change', updatePreviewChart);
+});
+
+function updatePreviewChart() {
+    if (!loadedGpxRoute || typeof TrainingAlgorithms === 'undefined') return;
+
+    const mode = document.querySelector('input[name="training-mode"]:checked').value;
+    const profile = TrainingAlgorithms[mode](loadedGpxRoute, modalTargetSpeed);
+    const distances = loadedGpxRoute.map(pt => (pt.cumulativeDistance / 1000).toFixed(2));
+    const elevations = loadedGpxRoute.map(pt => pt.ele);
+
+    const ctx = document.getElementById('modalProfileChart').getContext('2d');
+    
+    if (modalChartInstance) {
+        modalChartInstance.destroy();
+    }
+
+    modalChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: distances,
+            datasets: [
+                {
+                    label: 'Elevation', data: elevations,
+                    borderColor: '#3B82F6', backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    yAxisID: 'yElevation', fill: true, tension: 0.4, pointRadius: 0
+                },
+                {
+                    label: 'Suggested Speed', data: profile,
+                    type: 'bar', backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                    yAxisID: 'ySpeed', barPercentage: 1.0, categoryPercentage: 1.0
+                }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                yElevation: { type: 'linear', position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF' } },
+                ySpeed: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#34D399' }, suggestedMin: 0 }
+            }
+        }
+    });
+}
+
+document.getElementById('btn-apply-training').addEventListener('click', () => {
+    currentBaseSpeed = modalTargetSpeed;
+    currentTrainingMode = document.querySelector('input[name="training-mode"]:checked').value;
+    
+    // Hide modal
+    document.getElementById('training-modal').classList.add('opacity-0');
+    setTimeout(() => document.getElementById('training-modal').classList.add('hidden'), 500);
+
+    if (typeof TrainingAlgorithms !== 'undefined') {
+        currentTrainingProfile = TrainingAlgorithms[currentTrainingMode](loadedGpxRoute, currentBaseSpeed);
+    }
+
+    renderProfileChart();
+    
+    // Auto-show chart panel
+    if (!isProfileVisible) {
+        document.getElementById('btn-toggle-profile').click();
+    }
+});
+
+function renderProfileChart() {
+    if (!loadedGpxRoute || !currentTrainingProfile) return;
+
+    const ctx = document.getElementById('profileChart').getContext('2d');
+    
+    const distances = loadedGpxRoute.map(pt => (pt.cumulativeDistance / 1000).toFixed(2));
+    const elevations = loadedGpxRoute.map(pt => pt.ele);
+
+    if (profileChart) {
+        profileChart.destroy();
+    }
+
+    profileChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: distances,
+            datasets: [
+                {
+                    label: 'Elevation (m)',
+                    data: elevations,
+                    borderColor: '#3B82F6', // Blue
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    yAxisID: 'yElevation',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Suggested Speed (km/h)',
+                    data: currentTrainingProfile,
+                    type: 'bar',
+                    backgroundColor: 'rgba(16, 185, 129, 0.5)', // Green
+                    yAxisID: 'ySpeed',
+                    barPercentage: 1.0,
+                    categoryPercentage: 1.0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                yElevation: { 
+                    type: 'linear', display: true, position: 'left',
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#9CA3AF' }
+                },
+                ySpeed: { 
+                    type: 'linear', display: true, position: 'right',
+                    grid: { drawOnChartArea: false },
+                    ticks: { color: '#34D399' }
+                }
+            }
+        }
+    });
 }
 
 // --- HUD & UI Animations ---
@@ -998,6 +1188,8 @@ document.getElementById('btn-toggle-hud').addEventListener('click', () => {
     hudSide.classList.add('translate-x-[150%]'); // Hide settings
     hudHistory.classList.add('-translate-x-[150%]'); // Hide history
     hudSpeed.classList.add('translate-x-[150%]'); // Hide speed column
+    hudChartPanel.classList.add('-translate-y-[150%]', 'opacity-0'); // Fix hiding chart panel
+    
     isSettingsVisible = false;
     isHistoryVisible = false;
     
@@ -1017,6 +1209,10 @@ btnShowHud.addEventListener('click', () => {
     hudTop.classList.remove('-translate-y-[150%]', 'opacity-0');
     hudBottom.classList.remove('translate-y-[150%]', 'opacity-0');
     hudSpeed.classList.remove('translate-x-[150%]'); // Restore speed column
+    
+    if (isProfileVisible) {
+        hudChartPanel.classList.remove('-translate-y-[150%]', 'opacity-0');
+    }
     
     // Exit fullscreen
     if (document.fullscreenElement) {
@@ -1065,6 +1261,9 @@ document.getElementById('btn-toggle-history').addEventListener('click', () => {
 let lastInclineCmdTime = 0;
 const INCLINE_COOLDOWN_MS = 60000; // Safe minimum: 60 seconds between Bluetooth commands to protect incline motor
 const LOOKAHEAD_METERS = 150; // Calculate average gradient over the next 150 meters (approx 1 minute of running)
+
+let lastSpeedCmdTime = 0;
+const SPEED_COOLDOWN_MS = 60000; // Safe minimum: 60 seconds between Bluetooth commands to protect speed motor
 
 function getElevationAtDistance(targetDist) {
     if (!loadedGpxRoute || loadedGpxRoute.length === 0) return 0;
