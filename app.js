@@ -350,6 +350,90 @@ function handleTreadmillData(event) {
     }
 }
 
+// --- Motivational Coach System ---
+const motOverlay = document.getElementById('motivational-overlay');
+const motText = document.getElementById('motivational-text');
+const selectLang = document.getElementById('select-lang');
+
+let currentLang = localStorage.getItem('coachLanguage') || 'en';
+selectLang.value = currentLang;
+
+selectLang.addEventListener('change', (e) => {
+    currentLang = e.target.value;
+    localStorage.setItem('coachLanguage', currentLang);
+});
+
+const phrases = {
+    en: {
+        speed_up: ["Time to fly!", "Punch it! Speed increasing!", "Turbo mode engaged!", "Feel the wind!"],
+        speed_down: ["Easy tiger, slowing down...", "Recovery time!", "Breathe! Speed decreasing.", "Take it easy."],
+        hill_up: ["Oh boy... Hill approaching!", "Get ready to climb!", "Gravity is just a theory!", "Push through the incline!"],
+        hill_down: ["What goes up, must come down!", "Wheeeeee! Downhill!", "Free speed! Incline dropping."],
+        start_3: "3...", start_2: "2...", start_1: "1...", start_go: "GO!"
+    },
+    es: {
+        speed_up: ["¡A volar!", "¡Métele nitro!", "¡Modo turbo activado!", "¡Siente la brisa!"],
+        speed_down: ["Tranquilo fiera, bajando velocidad...", "¡Recupera el aliento!", "¡Respira! Aflojando el paso.", "Tómatelo con calma."],
+        hill_up: ["Ay mamá... ¡Se viene una cuesta!", "¡A escalar se ha dicho!", "¡La gravedad es un mito!", "¡Sube con fuerza!"],
+        hill_down: ["¡Todo lo que sube, baja!", "¡Wiiii! ¡Cuesta abajo!", "¡Velocidad gratis! Disfruta la bajada."],
+        start_3: "3...", start_2: "2...", start_1: "1...", start_go: "¡VAMOS!"
+    }
+};
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playNotificationSound() {
+    if (currentLang === 'none') return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+    osc.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1); // Up to A6
+    gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.5);
+}
+
+let coachMessageTimeout = null;
+
+function showMotivationalMessage(type) {
+    if (currentLang === 'none') return;
+    
+    let msg = "";
+    if (Array.isArray(phrases[currentLang][type])) {
+        const arr = phrases[currentLang][type];
+        msg = arr[Math.floor(Math.random() * arr.length)];
+    } else {
+        msg = phrases[currentLang][type];
+    }
+    
+    if (!msg) return;
+
+    motText.textContent = msg;
+    motOverlay.classList.remove('opacity-0');
+    
+    // Force reflow to restart CSS transitions
+    void motText.offsetWidth;
+    motText.classList.remove('scale-50');
+    motText.classList.add('scale-100');
+
+    playNotificationSound();
+
+    if (coachMessageTimeout) clearTimeout(coachMessageTimeout);
+    
+    // Hide after 3 seconds unless it's a short countdown tick
+    const duration = type.startsWith('start_') && type !== 'start_go' ? 800 : 3000;
+    
+    coachMessageTimeout = setTimeout(() => {
+        motOverlay.classList.add('opacity-0');
+        motText.classList.remove('scale-100');
+        motText.classList.add('scale-50');
+    }, duration);
+}
+
 // --- Dashboard & Run State ---
 
 function updateDashboard(data) {
@@ -452,6 +536,55 @@ function updateDashboard(data) {
                                      }
                                  }
                              }
+                             
+                             // --- MAGIC: Lookahead Motivational Coach ---
+                             if (runState === 'recording') {
+                                 // Look 30 meters ahead to warn the user
+                                 let aheadDist = currentRun.distance + 30;
+                                 let aheadIndex = currentIndex;
+                                 for (let i = currentIndex; i < loadedGpxRoute.length - 1; i++) {
+                                     if (aheadDist >= loadedGpxRoute[i].cumulativeDistance && aheadDist <= loadedGpxRoute[i+1].cumulativeDistance) {
+                                         aheadIndex = i;
+                                         break;
+                                     }
+                                 }
+                                 
+                                 if (aheadIndex > currentIndex && (now - (window.lastMotMessageTime || 0) > 20000)) {
+                                     // 1. Check for Speed Changes approaching
+                                     if (currentTrainingProfile) {
+                                         const futureSpeed = currentTrainingProfile[aheadIndex];
+                                         const currentSpeed = currentTrainingProfile[currentIndex];
+                                         if (futureSpeed - currentSpeed >= 1.0) {
+                                             showMotivationalMessage('speed_up');
+                                             window.lastMotMessageTime = now;
+                                         } else if (currentSpeed - futureSpeed >= 1.0) {
+                                             showMotivationalMessage('speed_down');
+                                             window.lastMotMessageTime = now;
+                                         }
+                                     }
+                                     
+                                     // 2. Check for Hill Changes approaching (if we didn't just warn about speed)
+                                     if (now - (window.lastMotMessageTime || 0) > 20000) {
+                                         const currentEle = pt1.ele;
+                                         const futureEle = loadedGpxRoute[aheadIndex].ele;
+                                         const gradient = ((futureEle - currentEle) / 30) * 100;
+                                         
+                                         if (gradient >= 4.0) {
+                                             showMotivationalMessage('hill_up');
+                                             window.lastMotMessageTime = now;
+                                         } else if (gradient <= -4.0) {
+                                             showMotivationalMessage('hill_down');
+                                             window.lastMotMessageTime = now;
+                                         }
+                                     }
+                                 }
+                                 
+                                 // Trigger chart re-render to update the progress line
+                                 if (profileChart && isProfileVisible) {
+                                     profileChart.update('none'); // Update without full animation for performance
+                                 }
+                             }
+
                          }
                     }
                 } else {
@@ -543,23 +676,50 @@ function startRun() {
     if (!startCoordinates && !loadedGpxRoute) {
         if(!confirm("No route loaded. Run in Free Mode without moving the map avatar?")) return;
     }
-
-    runState = 'recording';
-    currentRun = {
-        durationSeconds: 0,
-        distance: 0,
-        speeds: [],
-        calories: 0
-    };
+    if (runState === 'countdown') return; // Prevent double click
 
     btnStartRun.classList.add('hidden');
     btnPauseRun.classList.remove('hidden');
     btnStopRun.classList.remove('hidden');
-    runStatusText.textContent = "Recording";
+    runStatusText.textContent = "Starting...";
     runStatusText.classList.remove('hidden');
+    runStatusText.classList.replace('text-green-400', 'text-yellow-400');
+    
+    runState = 'countdown';
+    let count = 3;
+    
+    // First immediate tick
+    showMotivationalMessage('start_' + count);
+    count--;
 
-    lastTimerTick = Date.now();
-    timerInterval = setInterval(updateTimer, 1000);
+    const countInterval = setInterval(() => {
+        if (count > 0) {
+            showMotivationalMessage('start_' + count);
+            count--;
+        } else {
+            clearInterval(countInterval);
+            showMotivationalMessage('start_go');
+            
+            // Actual run start logic
+            runState = 'recording';
+            runStatusText.textContent = "Recording";
+            runStatusText.classList.replace('text-yellow-400', 'text-green-400');
+            
+            currentRun = {
+                durationSeconds: 0,
+                distance: 0,
+                speeds: [],
+                calories: 0
+            };
+
+            lastTimerTick = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
+            
+            if (controlCharacteristic) {
+                startMachine(); // Auto-send physical start to the treadmill
+            }
+        }
+    }, 1000);
 }
 
 function pauseRun() {
@@ -880,6 +1040,25 @@ function handleGpxFile(file) {
 overlayInputGpx.addEventListener('change', (e) => handleGpxFile(e.target.files[0]));
 inputGpx.addEventListener('change', (e) => handleGpxFile(e.target.files[0]));
 
+document.querySelectorAll('.btn-preset-gpx').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+        const url = e.target.getAttribute('data-url');
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("Network response was not ok");
+            const xmlString = await response.text();
+            parseGPX(xmlString);
+            gpxOverlay.classList.add('opacity-0', 'pointer-events-none');
+            document.getElementById('training-modal').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('training-modal').classList.remove('opacity-0');
+            }, 10);
+        } catch (error) {
+            alert("Could not load preset route. Make sure the 'routes' folder exists on the server. Error: " + error.message);
+        }
+    });
+});
+
 // Drag and Drop Events
 dropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -995,6 +1174,13 @@ function parseGPX(xmlString) {
     const startPt = loadedGpxRoute[0];
     setMapStartPoint(startPt.lng, startPt.lat);
     
+    // Reset Run Progress
+    if (runState === 'idle') {
+        currentRun = { durationSeconds: 0, distance: 0, speeds: [], calories: 0 };
+        elDistance.textContent = "0.00";
+        elTime.textContent = "00:00";
+    }
+
     // Fit map bounds to the route
     const bounds = geoJsonCoords.reduce(function(bounds, coord) {
         return bounds.extend(coord);
@@ -1010,6 +1196,53 @@ function parseGPX(xmlString) {
 
 const hudChartPanel = document.getElementById('hud-chart-panel');
 let isProfileVisible = false;
+
+// We need a plugin to draw the vertical progress line on the chart
+const verticalLinePlugin = {
+    id: 'verticalLinePlugin',
+    afterDraw: (chart) => {
+        if (runState === 'idle' || !currentRun || currentRun.distance === 0 || !loadedGpxRoute) return;
+
+        const ctx = chart.ctx;
+        const xAxis = chart.scales.x;
+        const yAxis1 = chart.scales.yElevation;
+        const yAxis2 = chart.scales.ySpeed;
+        
+        // Find the X pixel coordinate based on the current distance
+        const currentDistKm = currentRun.distance / 1000;
+        const totalDistKm = loadedGpxRoute[loadedGpxRoute.length - 1].cumulativeDistance / 1000;
+        
+        // Prevent drawing outside bounds
+        if (currentDistKm > totalDistKm) return;
+        
+        // Map the distance to the pixel X coordinate on the chart
+        const xPos = xAxis.left + (xAxis.right - xAxis.left) * (currentDistKm / totalDistKm);
+        
+        const topY = Math.min(yAxis1.top, yAxis2.top);
+        const bottomY = Math.max(yAxis1.bottom, yAxis2.bottom);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(xPos, topY);
+        ctx.lineTo(xPos, bottomY);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#EF4444'; // Tailwind Red-500
+        ctx.stroke();
+        
+        // Draw a glowing dot on the line
+        ctx.beginPath();
+        ctx.arc(xPos, topY + 10, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = '#EF4444';
+        ctx.fill();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#EF4444';
+        ctx.fill();
+
+        ctx.restore();
+    }
+};
+
+Chart.register(verticalLinePlugin);
 
 document.getElementById('btn-toggle-profile').addEventListener('click', () => {
     isProfileVisible = !isProfileVisible;
