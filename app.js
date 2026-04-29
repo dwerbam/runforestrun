@@ -447,19 +447,9 @@ function updateDashboard(data) {
                     return;
                 }
                 
+                // Update global variables for Three.js
+                currentRunnerPosition = newPos;
                 routeCoordinates.push(newPos);
-                
-                // Update GeoJSON Avatar
-                if (map.getSource('avatar')) {
-                    map.getSource('avatar').setData({
-                        'type': 'Feature',
-                        'properties': {},
-                        'geometry': {
-                            'type': 'Point',
-                            'coordinates': newPos
-                        }
-                    });
-                }
                 
                 if (routeLineSource) {
                     routeLineSource.setData({
@@ -488,10 +478,9 @@ function updateDashboard(data) {
                                  break;
                              }
                          }
-                     } else {
-                         // Free run: just use the bearing of the last step
-                         bearing = calculateBearing(lastPos[1], lastPos[0], newPos[1], newPos[0]);
                      }
+                     
+                     currentRunnerBearing = bearing; // Update for Three.js rotation
 
                      map.easeTo({
                          center: newPos,
@@ -504,6 +493,8 @@ function updateDashboard(data) {
                 } else {
                      map.easeTo({ center: newPos, duration: 1000, easing: (t) => t });
                 }
+                
+                map.triggerRepaint(); // Force Three.js to render
             }
         }
         
@@ -650,6 +641,8 @@ let map;
 let routeLineSource = null;
 let routeCoordinates = [];
 let startCoordinates = null; // [lng, lat]
+let currentRunnerPosition = null; // [lng, lat]
+let currentRunnerBearing = 0;
 
 // A realistic satellite tile style for a videogame/flight-simulator feel
 const satelliteStyle = {
@@ -670,6 +663,9 @@ const satelliteStyle = {
     }]
 };
 
+// --- No Custom Layer ---
+// We removed Three.js in favor of pure immersive First Person camera and 3D Vector tiles.
+
 function initMap() {
     map = new maplibregl.Map({
         container: 'map',
@@ -688,6 +684,47 @@ function initMap() {
             'encoding': 'terrarium',
             'tileSize': 256,
             'maxzoom': 14
+        });
+        
+        // Initial setup for First Person (default mode)
+        map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 2.5 });
+        
+        // Add OpenStreetMap vector tiles for 3D Buildings
+        map.addSource('osm-buildings', {
+            'type': 'vector',
+            'tiles': ['https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf'],
+            'maxzoom': 15
+        });
+
+        map.addLayer({
+            'id': '3d-buildings',
+            'source': 'osm-buildings',
+            'source-layer': 'Building', // Usually 'Building' or 'building' in ArcGIS OSM vector schema
+            'type': 'fill-extrusion',
+            'minzoom': 14,
+            'paint': {
+                'fill-extrusion-color': '#aaa',
+                // Use an 'interpolate' expression to add a smooth transition effect to the buildings as the user zooms in
+                'fill-extrusion-height': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    14,
+                    0,
+                    14.05,
+                    ['get', 'height'] // Assuming the vector tile has a 'height' property
+                ],
+                'fill-extrusion-base': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    14,
+                    0,
+                    14.05,
+                    ['get', 'min_height'] // Or 0 if not present
+                ],
+                'fill-extrusion-opacity': 0.8
+            }
         });
         
         // Source and Layer for the planned GPX route
@@ -731,31 +768,6 @@ function initMap() {
             }
         });
         
-        // Source and Layer for the Avatar dot (to replace HTML Marker)
-        map.addSource('avatar', {
-            'type': 'geojson',
-            'data': {
-                'type': 'Feature',
-                'properties': {},
-                'geometry': {
-                    'type': 'Point',
-                    'coordinates': [0, 0]
-                }
-            }
-        });
-
-        map.addLayer({
-            'id': 'avatar-point',
-            'type': 'circle',
-            'source': 'avatar',
-            'paint': {
-                'circle-radius': 6,
-                'circle-color': '#EF4444', // Red 500
-                'circle-stroke-width': 2,
-                'circle-stroke-color': '#ffffff' // White border
-            }
-        });
-        
         routeLineSource = map.getSource('route');
     });
 
@@ -765,19 +777,8 @@ function initMap() {
 function setMapStartPoint(lng, lat) {
     startCoordinates = [lng, lat];
     routeCoordinates = [[lng, lat]];
+    currentRunnerPosition = [lng, lat];
     
-    // Update GeoJSON Avatar
-    if (map.getSource('avatar')) {
-        map.getSource('avatar').setData({
-            'type': 'Feature',
-            'properties': {},
-            'geometry': {
-                'type': 'Point',
-                'coordinates': [lng, lat]
-            }
-        });
-    }
-        
     if (routeLineSource) {
         routeLineSource.setData({
             'type': 'Feature',
@@ -789,11 +790,13 @@ function setMapStartPoint(lng, lat) {
     // Orient camera to the start of the GPX if we are in First Person mode
     if (cameraMode === 2 && loadedGpxRoute && loadedGpxRoute.length > 1) {
         let pt2 = loadedGpxRoute[1]; // Look at the second point
-        let bearing = calculateBearing(lat, lng, pt2.lat, pt2.lng);
-        map.jumpTo({ center: [lng, lat], bearing: bearing, zoom: 19, pitch: 80 });
+        currentRunnerBearing = calculateBearing(lat, lng, pt2.lat, pt2.lng);
+        map.jumpTo({ center: [lng, lat], bearing: currentRunnerBearing, zoom: 19, pitch: 80 });
     } else {
         map.jumpTo({ center: [lng, lat] });
     }
+    
+    if(map) map.triggerRepaint();
 }
 
 // Math to calculate a new Lat/Lng based on distance and bearing
@@ -876,13 +879,13 @@ document.getElementById('btn-toggle-camera').addEventListener('click', (e) => {
         btn.classList.replace('bg-indigo-600', 'bg-gray-200');
         btn.classList.replace('text-white', 'text-gray-700');
     } else if (cameraMode === 1) { // 3D Bird's Eye
-        map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 1.5 });
+        map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 2.5 });
         map.easeTo({ pitch: 60, zoom: 15, duration: 1000 });
         btn.textContent = '🚁 3D Bird\'s Eye';
         btn.classList.replace('bg-gray-200', 'bg-blue-600');
         btn.classList.replace('text-gray-700', 'text-white');
     } else if (cameraMode === 2) { // First Person
-        map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 1.5 });
+        map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 2.5 });
         // The camera position will be updated dynamically in the animation loop, 
         // but we set a high zoom and extreme pitch here to start.
         map.easeTo({ pitch: 80, zoom: 18, duration: 1000 });
@@ -1058,8 +1061,8 @@ document.getElementById('btn-toggle-history').addEventListener('click', () => {
 
 // --- Smoothed Elevation Helper ---
 let lastInclineCmdTime = 0;
-const INCLINE_COOLDOWN_MS = 15000; // Minimum 15 seconds between Bluetooth commands
-const LOOKAHEAD_METERS = 40; // Calculate average gradient over the next 40 meters to smooth out noise
+const INCLINE_COOLDOWN_MS = 60000; // Safe minimum: 60 seconds between Bluetooth commands to protect incline motor
+const LOOKAHEAD_METERS = 150; // Calculate average gradient over the next 150 meters (approx 1 minute of running)
 
 function getElevationAtDistance(targetDist) {
     if (!loadedGpxRoute || loadedGpxRoute.length === 0) return 0;
