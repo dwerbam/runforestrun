@@ -673,7 +673,9 @@ function initMap() {
         center: [-0.1276, 51.5072], // Default London
         zoom: 19,
         pitch: 80,
-        bearing: 0
+        bearing: 0,
+        maxTileCacheSize: 500, // Increase RAM cache for tiles
+        prefetchZoomDelta: 2 // Prefetch tiles at lower/higher zooms aggressively
     });
 
     map.on('load', () => {
