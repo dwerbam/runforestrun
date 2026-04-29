@@ -11,6 +11,7 @@
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         [v-cloak] { display: none; }
         body { font-family: 'Montserrat', sans-serif; }
@@ -29,6 +30,13 @@
 
     <!-- Initial GPX Drop Overlay -->
     <div id="gpx-overlay" class="absolute inset-0 z-50 bg-gray-900/90 backdrop-blur-xl flex flex-col items-center justify-center transition-opacity duration-700">
+        
+        <!-- Mobile/iPad Sync QR Code -->
+        <div class="absolute top-6 right-6 flex flex-col items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-3xl shadow-2xl hidden md:flex">
+            <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Open on iPad / Mobile</span>
+            <div id="qrcode-container" class="bg-white p-2 rounded-xl"></div>
+        </div>
+
         <div id="drop-zone" class="border-2 border-dashed border-gray-500 rounded-3xl p-8 md:p-12 text-center hover:bg-white/5 hover:border-white transition-colors cursor-pointer flex flex-col items-center justify-center w-11/12 max-w-2xl h-[500px]">
             <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
             <h2 class="text-3xl font-bold text-white mb-2">Drop your GPX route here</h2>

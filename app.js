@@ -1698,4 +1698,19 @@ function getElevationAtDistance(targetDist) {
 }
 
 // Initialize on load
-document.addEventListener('DOMContentLoaded', initMap);
+document.addEventListener('DOMContentLoaded', () => {
+    initMap();
+    
+    // Generate QR Code for easy mobile/iPad access
+    const qrContainer = document.getElementById('qrcode-container');
+    if (qrContainer) {
+        new QRCode(qrContainer, {
+            text: window.location.href,
+            width: 100,
+            height: 100,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.L
+        });
+    }
+});
