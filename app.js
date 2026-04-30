@@ -577,35 +577,17 @@ function updateDashboard(data) {
                                  }
                              }
                              
-                             // --- MAGIC: Auto-Speed from Training Profile (Throttled & Safe) ---
+                             // --- MAGIC: Auto-Speed from Training Profile (Throttled) ---
                              if (currentTrainingProfile && runState === 'recording') {
                                  const suggestedSpeed = currentTrainingProfile[currentIndex];
                                  
                                  // Check if we need to change speed (difference of at least 0.1 km/h)
                                  if (suggestedSpeed && Math.abs(suggestedSpeed - currentTargetSpeed) >= 0.1) {
-                                     
-                                     // Safety Ramp-Up Logic:
-                                     // If the treadmill is currently running very slow (just started) and the profile demands a high speed,
-                                     // we bypass the 60s cooldown, but we ONLY increment speed by +1.0 km/h max per tick to prevent jerky acceleration.
-                                     let isRampingUp = false;
-                                     let speedToApply = suggestedSpeed;
-                                     
-                                     if (suggestedSpeed - currentTargetSpeed > 1.0) {
-                                         // It wants to jump too fast. Cap the acceleration to +1.0 km/h per command.
-                                         speedToApply = currentTargetSpeed + 1.0;
-                                         isRampingUp = true;
-                                     }
-                                     
-                                     // Send command if cooldown passed OR if we are safely ramping up
-                                     if (isRampingUp || now - lastSpeedCmdTime > SPEED_COOLDOWN_MS) {
-                                         console.log(`Auto-Speed Update: Changing speed from ${currentTargetSpeed} to ${speedToApply.toFixed(1)} km/h`);
-                                         setMachineSpeed(speedToApply);
-                                         
-                                         if (!isRampingUp) {
-                                            // Only reset the 60s lock if it was a normal profile change, not a ramp-up microstep.
-                                            // If ramping up, we allow the next tick (1 second later) to increment another +1.0 km/h.
-                                            lastSpeedCmdTime = now;
-                                         }
+                                     // Send command only if cooldown has passed
+                                     if (now - lastSpeedCmdTime > SPEED_COOLDOWN_MS) {
+                                         console.log(`Auto-Speed Update: Profile changing speed from ${currentTargetSpeed} to ${suggestedSpeed.toFixed(1)} km/h`);
+                                         setMachineSpeed(suggestedSpeed);
+                                         lastSpeedCmdTime = now;
                                      }
                                  }
                              }
@@ -789,17 +771,17 @@ function startRun() {
             timerInterval = setInterval(updateTimer, 1000);
             
             if (controlCharacteristic) {
-                // Safety first: Always start the machine at a safe 2.0 km/h walking pace, regardless of training profile
-                currentTargetSpeed = 2.0;
-                displayTargetSpeed.textContent = currentTargetSpeed.toFixed(1);
-                
                 // 1. Send the mechanical start command
-                startMachine().then(() => {
-                    // 2. Explicitly force the speed to 2.0 km/h right after starting
-                    setTimeout(() => setMachineSpeed(2.0), 1000);
-                });
+                startMachine();
                 
-                // Reset cooldowns so the auto-speed logic waits a bit before ramping up
+                // 2. Set the initial speed to whatever the profile asks for at kilometer 0
+                if (currentTrainingProfile && currentTrainingProfile.length > 0) {
+                    currentTargetSpeed = currentTrainingProfile[0];
+                    displayTargetSpeed.textContent = currentTargetSpeed.toFixed(1);
+                    setMachineSpeed(currentTargetSpeed);
+                }
+                
+                // Reset cooldowns
                 lastSpeedCmdTime = Date.now(); 
             }
         }
