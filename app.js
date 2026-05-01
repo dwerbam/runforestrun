@@ -468,11 +468,16 @@ function showMotivationalMessage(type) {
 // --- Dashboard & Run State ---
 
 let lastHrCmdTime = 0;
-const HR_COOLDOWN_MS = 30000; // 30 seconds before reducing speed again
+const HR_COOLDOWN_MS = 30000;
+let lastSpeedCmdTime = 0;
+const SPEED_COOLDOWN_MS = 60000;
+let lastInclineCmdTime = 0;
+const INCLINE_COOLDOWN_MS = 60000;
+const LOOKAHEAD_METERS = 150;
 
 // --- Smooth Camera Bearing Helper ---
 let smoothedCameraBearing = null;
-const BEARING_SMOOTHING_FACTOR = 0.01; // Extremely low for maximum stabilization (drone-like panning)
+const BEARING_SMOOTHING_FACTOR = 0.05; // Low for smooth stabilization (drone-like panning)
 
 function getShortestAngle(from, to) {
     let difference = to - from;
@@ -698,7 +703,7 @@ function updateDashboard(data) {
                          // Exponential Moving Average for super smooth turning
                          const angleDiff = getShortestAngle(smoothedCameraBearing, targetBearing);
                          // Increased smoothing factor so the camera doesn't lag too far behind in sharp turns
-                         smoothedCameraBearing = (smoothedCameraBearing + (angleDiff * 0.05)) % 360;
+                         smoothedCameraBearing = (smoothedCameraBearing + (angleDiff * BEARING_SMOOTHING_FACTOR)) % 360;
                      }
                      
                      currentRunnerBearing = smoothedCameraBearing; // Update global state if needed
@@ -780,6 +785,8 @@ function startRun() {
             runState = 'recording';
             runStatusText.textContent = "Recording";
             runStatusText.classList.replace('text-yellow-400', 'text-green-400');
+
+            hideAllPanels();
             
             currentRun = {
                 durationSeconds: 0,
@@ -842,6 +849,7 @@ function stopRun() {
     
     runState = 'idle';
     clearInterval(timerInterval);
+    showAllPanels();
 
     btnStartRun.classList.remove('hidden');
     btnPauseRun.classList.add('hidden');
@@ -1126,43 +1134,9 @@ function handleGpxFile(file) {
 // Event Listeners for File Selection
 overlayInputGpx.addEventListener('change', (e) => handleGpxFile(e.target.files[0]));
 
-// Horizontal Mouse Scroll for Carousel
-const presetContainer = document.getElementById('preset-gpx-container');
-let isDown = false;
-let startX;
-let startScrollLeft; // Store initial scroll state to prevent erratic jumps
-
-presetContainer.addEventListener('mousedown', (e) => {
-    isDown = true;
-    presetContainer.classList.add('cursor-grabbing');
-    startX = e.pageX - presetContainer.offsetLeft;
-    startScrollLeft = presetContainer.scrollLeft;
-});
-presetContainer.addEventListener('mouseleave', () => {
-    isDown = false;
-    presetContainer.classList.remove('cursor-grabbing');
-});
-presetContainer.addEventListener('mouseup', () => {
-    isDown = false;
-    presetContainer.classList.remove('cursor-grabbing');
-});
-presetContainer.addEventListener('mousemove', (e) => {
-    if (!isDown) return;
-    e.preventDefault();
-    const x = e.pageX - presetContainer.offsetLeft;
-    const walk = (x - startX) * 2; // Scroll multiplier
-    // Apply delta strictly against the INITIAL position of the click, not compounding
-    presetContainer.scrollLeft = startScrollLeft - walk; 
-});
-// Wheel scroll support
-presetContainer.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    presetContainer.scrollLeft += e.deltaY;
-});
-
 document.querySelectorAll('.btn-preset-gpx').forEach(btn => {
     btn.addEventListener('click', async (e) => {
-        const url = e.target.getAttribute('data-url');
+        const url = btn.getAttribute('data-url');
         try {
             const response = await fetch(url);
             if (!response.ok) throw new Error("Network response was not ok");
@@ -1403,14 +1377,40 @@ const verticalLinePlugin = {
 
 Chart.register(verticalLinePlugin);
 
-document.getElementById('btn-toggle-profile').addEventListener('click', () => {
-    isProfileVisible = !isProfileVisible;
-    if (isProfileVisible) {
-        hudChartPanel.classList.remove('-translate-y-[150%]', 'opacity-0');
-    } else {
-        hudChartPanel.classList.add('-translate-y-[150%]', 'opacity-0');
+function closeAllSidePanels() {
+    isProfileVisible = false;
+    isSettingsVisible = false;
+    isHistoryVisible = false;
+    hudChartPanel.classList.add('-translate-y-[150%]', 'opacity-0');
+    hudSide.classList.remove('translate-x-0');
+    hudSide.classList.add('translate-x-[150%]');
+    hudHistory.classList.remove('translate-x-0');
+    hudHistory.classList.add('-translate-x-[150%]');
+}
+
+function selectPanel(panel) {
+    if ((panel === 'profile' && isProfileVisible) ||
+        (panel === 'settings' && isSettingsVisible) ||
+        (panel === 'history' && isHistoryVisible)) {
+        closeAllSidePanels();
+        return;
     }
-});
+    closeAllSidePanels();
+    if (panel === 'profile') {
+        isProfileVisible = true;
+        hudChartPanel.classList.remove('-translate-y-[150%]', 'opacity-0');
+    } else if (panel === 'settings') {
+        isSettingsVisible = true;
+        hudSide.classList.remove('translate-x-[150%]');
+        hudSide.classList.add('translate-x-0');
+    } else if (panel === 'history') {
+        isHistoryVisible = true;
+        hudHistory.classList.remove('-translate-x-[150%]');
+        hudHistory.classList.add('translate-x-0');
+    }
+}
+
+document.getElementById('btn-toggle-profile').addEventListener('click', () => selectPanel('profile'));
 
 document.getElementById('btn-change-mode').addEventListener('click', () => {
     document.getElementById('training-modal').classList.remove('hidden');
@@ -1658,6 +1658,7 @@ function generateMachineInclineProfile(route) {
 
 const hudTop = document.getElementById('hud-top');
 const hudBottom = document.getElementById('hud-bottom');
+const hudRunControls = document.getElementById('hud-run-controls');
 const hudSide = document.getElementById('hud-side');
 const hudHistory = document.getElementById('hud-history');
 const hudSpeed = document.getElementById('hud-speed');
@@ -1667,89 +1668,37 @@ let isHudVisible = true;
 let isSettingsVisible = false;
 let isHistoryVisible = false;
 
-document.getElementById('btn-toggle-hud').addEventListener('click', () => {
+function hideAllPanels() {
     isHudVisible = false;
-    hudTop.classList.add('-translate-y-[150%]', 'opacity-0');
-    hudBottom.classList.add('translate-y-[150%]', 'opacity-0');
-    hudSide.classList.add('translate-x-[150%]'); // Hide settings
-    hudHistory.classList.add('-translate-x-[150%]'); // Hide history
-    hudSpeed.classList.add('translate-x-[150%]'); // Hide speed column
-    hudChartPanel.classList.add('-translate-y-[150%]', 'opacity-0'); // Fix hiding chart panel
-    
-    isSettingsVisible = false;
-    isHistoryVisible = false;
-    
-    // Request fullscreen for full immersion
+    closeAllSidePanels();
+
+    hudRunControls.classList.add('translate-y-[150%]', 'opacity-0');
+
     if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {
-            console.warn(`Could not enable fullscreen: ${err.message}`);
-        });
+        document.documentElement.requestFullscreen().catch(() => {});
     }
-    
-    // Show the minimal return button
+
     btnShowHud.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-10');
-});
+}
 
-btnShowHud.addEventListener('click', () => {
+function showAllPanels() {
     isHudVisible = true;
-    hudTop.classList.remove('-translate-y-[150%]', 'opacity-0');
-    hudBottom.classList.remove('translate-y-[150%]', 'opacity-0');
-    hudSpeed.classList.remove('translate-x-[150%]'); // Restore speed column
-    
-    if (isProfileVisible) {
-        hudChartPanel.classList.remove('-translate-y-[150%]', 'opacity-0');
-    }
-    
-    // Exit fullscreen
+    closeAllSidePanels();
+
+    hudRunControls.classList.remove('translate-y-[150%]', 'opacity-0');
+
     if (document.fullscreenElement) {
-        document.exitFullscreen().catch(err => console.warn(err));
+        document.exitFullscreen().catch(() => {});
     }
-    
-    // Hide the minimal return button
+
     btnShowHud.classList.add('opacity-0', 'pointer-events-none', 'translate-y-10');
-});
+}
 
-document.getElementById('btn-toggle-settings').addEventListener('click', () => {
-    isSettingsVisible = !isSettingsVisible;
-    if (isSettingsVisible) {
-        hudSide.classList.remove('translate-x-[150%]', 'translate-x-full');
-        hudSide.classList.add('translate-x-0');
-        // Auto-hide history if it's open to prevent clutter
-        if (isHistoryVisible) {
-            isHistoryVisible = false;
-            hudHistory.classList.remove('translate-x-0');
-            hudHistory.classList.add('-translate-x-[150%]');
-        }
-    } else {
-        hudSide.classList.remove('translate-x-0');
-        hudSide.classList.add('translate-x-[150%]');
-    }
-});
+document.getElementById('btn-toggle-hud').addEventListener('click', hideAllPanels);
+btnShowHud.addEventListener('click', showAllPanels);
 
-document.getElementById('btn-toggle-history').addEventListener('click', () => {
-    isHistoryVisible = !isHistoryVisible;
-    if (isHistoryVisible) {
-        hudHistory.classList.remove('-translate-x-[150%]', '-translate-x-full');
-        hudHistory.classList.add('translate-x-0');
-        // Auto-hide settings if it's open
-        if (isSettingsVisible) {
-            isSettingsVisible = false;
-            hudSide.classList.remove('translate-x-0');
-            hudSide.classList.add('translate-x-[150%]');
-        }
-    } else {
-        hudHistory.classList.remove('translate-x-0');
-        hudHistory.classList.add('-translate-x-[150%]');
-    }
-});
-
-// --- Smoothed Elevation Helper ---
-let lastInclineCmdTime = 0;
-const INCLINE_COOLDOWN_MS = 60000; // Safe minimum: 60 seconds between Bluetooth commands to protect incline motor
-const LOOKAHEAD_METERS = 150; // Calculate average gradient over the next 150 meters (approx 1 minute of running)
-
-let lastSpeedCmdTime = 0;
-const SPEED_COOLDOWN_MS = 60000; // Safe minimum: 60 seconds between Bluetooth commands to protect speed motor
+document.getElementById('btn-toggle-settings').addEventListener('click', () => selectPanel('settings'));
+document.getElementById('btn-toggle-history').addEventListener('click', () => selectPanel('history'));
 
 function getElevationAtDistance(targetDist) {
     if (!loadedGpxRoute || loadedGpxRoute.length === 0) return 0;

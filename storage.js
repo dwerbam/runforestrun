@@ -51,7 +51,7 @@ function renderHistory() {
     sessions.sort((a, b) => b.id - a.id);
 
     tbody.innerHTML = sessions.map(s => `
-        <tr class="hover:bg-gray-50">
+        <tr class="hover:bg-white/5">
             <td class="px-6 py-4 whitespace-nowrap">${formatDate(s.date)}</td>
             <td class="px-6 py-4">${formatDuration(s.durationSeconds)}</td>
             <td class="px-6 py-4">${(s.distance / 1000).toFixed(2)} km</td>
