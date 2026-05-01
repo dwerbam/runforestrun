@@ -470,6 +470,17 @@ function showMotivationalMessage(type) {
 let lastHrCmdTime = 0;
 const HR_COOLDOWN_MS = 30000; // 30 seconds before reducing speed again
 
+// --- Smooth Camera Bearing Helper ---
+let smoothedCameraBearing = null;
+const BEARING_SMOOTHING_FACTOR = 0.01; // Extremely low for maximum stabilization (drone-like panning)
+
+function getShortestAngle(from, to) {
+    let difference = to - from;
+    while (difference < -180) difference += 360;
+    while (difference > 180) difference -= 360;
+    return difference;
+}
+
 function updateDashboard(data) {
     if (data.speed !== undefined) {
         elSpeed.textContent = data.speed.toFixed(1);
@@ -663,28 +674,36 @@ function updateDashboard(data) {
                 if (cameraMode === 1) {
                      map.easeTo({ center: newPos, duration: 1000, easing: (t) => t });
                 } else if (cameraMode === 2) {
-                     // Get the direction we are moving
-                     let bearing = map.getBearing(); // Fallback to current bearing
+                     // Get the true target direction based on GPX Lookahead
+                     let targetBearing = map.getBearing(); 
                      
-                     // If we have a GPX, we can calculate the exact bearing to the next point
                      if (loadedGpxRoute && loadedGpxRoute.length > 1) {
-                         // Find the segment we are on again to look ahead
+                         // Look significantly ahead (30m) to anticipate wide turns and ignore GPS noise
+                         let aheadDist = currentRun.distance + 30; 
                          for (let i = 0; i < loadedGpxRoute.length - 1; i++) {
-                             if (currentRun.distance >= loadedGpxRoute[i].cumulativeDistance && 
-                                 currentRun.distance <= loadedGpxRoute[i+1].cumulativeDistance) {
-                                 // Look at the NEXT point to get the true heading of the path
+                             if (aheadDist >= loadedGpxRoute[i].cumulativeDistance && 
+                                 aheadDist <= loadedGpxRoute[i+1].cumulativeDistance) {
                                  let pt2 = loadedGpxRoute[i+1];
-                                 bearing = calculateBearing(newPos[1], newPos[0], pt2.lat, pt2.lng);
+                                 targetBearing = calculateBearing(newPos[1], newPos[0], pt2.lat, pt2.lng);
                                  break;
                              }
                          }
                      }
                      
-                     currentRunnerBearing = bearing; // Update for Three.js rotation
+                     // Initialize smoother if first time
+                     if (smoothedCameraBearing === null) {
+                         smoothedCameraBearing = targetBearing;
+                     } else {
+                         // Exponential Moving Average for super smooth turning
+                         const angleDiff = getShortestAngle(smoothedCameraBearing, targetBearing);
+                         smoothedCameraBearing = (smoothedCameraBearing + (angleDiff * BEARING_SMOOTHING_FACTOR)) % 360;
+                     }
+                     
+                     currentRunnerBearing = smoothedCameraBearing; // Update global state if needed
 
                      map.easeTo({
                          center: newPos,
-                         bearing: bearing,
+                         bearing: smoothedCameraBearing,
                          pitch: 80, 
                          zoom: 19, // Closer zoom for FP feel
                          duration: 1000, 
