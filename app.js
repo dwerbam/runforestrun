@@ -678,8 +678,9 @@ function updateDashboard(data) {
                      let targetBearing = map.getBearing(); 
                      
                      if (loadedGpxRoute && loadedGpxRoute.length > 1) {
-                         // Look significantly ahead (30m) to anticipate wide turns and ignore GPS noise
-                         let aheadDist = currentRun.distance + 30; 
+                         // Look significantly ahead (10m) to anticipate wide turns and ignore GPS noise,
+                         // but tight enough to not cut corners visually.
+                         let aheadDist = currentRun.distance + 10; 
                          for (let i = 0; i < loadedGpxRoute.length - 1; i++) {
                              if (aheadDist >= loadedGpxRoute[i].cumulativeDistance && 
                                  aheadDist <= loadedGpxRoute[i+1].cumulativeDistance) {
@@ -696,7 +697,8 @@ function updateDashboard(data) {
                      } else {
                          // Exponential Moving Average for super smooth turning
                          const angleDiff = getShortestAngle(smoothedCameraBearing, targetBearing);
-                         smoothedCameraBearing = (smoothedCameraBearing + (angleDiff * BEARING_SMOOTHING_FACTOR)) % 360;
+                         // Increased smoothing factor so the camera doesn't lag too far behind in sharp turns
+                         smoothedCameraBearing = (smoothedCameraBearing + (angleDiff * 0.05)) % 360;
                      }
                      
                      currentRunnerBearing = smoothedCameraBearing; // Update global state if needed
@@ -704,8 +706,8 @@ function updateDashboard(data) {
                      map.easeTo({
                          center: newPos,
                          bearing: smoothedCameraBearing,
-                         pitch: 80, 
-                         zoom: 19, // Closer zoom for FP feel
+                         pitch: 70, // Slightly reduced pitch to give a broader view of the path
+                         zoom: 19, 
                          duration: 1000, 
                          easing: (t) => t 
                      });
