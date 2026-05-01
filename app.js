@@ -707,7 +707,7 @@ function updateDashboard(data) {
                          center: newPos,
                          bearing: smoothedCameraBearing,
                          pitch: 70, // Slightly reduced pitch to give a broader view of the path
-                         zoom: 19, 
+                         zoom: 18, // Pulled back from 19 to prevent breaking satellite imagery in rural areas
                          duration: 1000, 
                          easing: (t) => t 
                      });
@@ -919,10 +919,11 @@ const satelliteStyle = {
     "sources": {
         "esri": {
             "type": "raster",
+            // The standard MapServer allows better auto-scaling when zoomed beyond physical tiles
             "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
             "tileSize": 256,
             "attribution": "&copy; Esri, Maxar, Earthstar Geographics",
-            "maxzoom": 19
+            "maxzoom": 17 // Cap at 17. MapLibre will just stretch these tiles nicely if user zooms closer
         }
     },
     "layers": [{
@@ -940,7 +941,7 @@ function initMap() {
         container: 'map',
         style: satelliteStyle,
         center: [-0.1276, 51.5072], // Default London
-        zoom: 19,
+        zoom: 17, // Changed from 19 to 17
         pitch: 80,
         bearing: 0,
         maxTileCacheSize: 500, // Increase RAM cache for tiles
@@ -954,7 +955,7 @@ function initMap() {
             'tiles': ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
             'encoding': 'terrarium',
             'tileSize': 256,
-            'maxzoom': 14
+            'maxzoom': 13 // Safest global maximum for this specific free DEM layer
         });
         
         // Initial setup for First Person (default mode)
@@ -1062,9 +1063,9 @@ function setMapStartPoint(lng, lat) {
     if (cameraMode === 2 && loadedGpxRoute && loadedGpxRoute.length > 1) {
         let pt2 = loadedGpxRoute[1]; // Look at the second point
         currentRunnerBearing = calculateBearing(lat, lng, pt2.lat, pt2.lng);
-        map.jumpTo({ center: [lng, lat], bearing: currentRunnerBearing, zoom: 19, pitch: 80 });
+        map.jumpTo({ center: [lng, lat], bearing: currentRunnerBearing, zoom: 17, pitch: 70 });
     } else {
-        map.jumpTo({ center: [lng, lat] });
+        map.jumpTo({ center: [lng, lat], zoom: 14 });
     }
     
     if(map) map.triggerRepaint();
@@ -1129,13 +1130,13 @@ overlayInputGpx.addEventListener('change', (e) => handleGpxFile(e.target.files[0
 const presetContainer = document.getElementById('preset-gpx-container');
 let isDown = false;
 let startX;
-let scrollLeft;
+let startScrollLeft; // Store initial scroll state to prevent erratic jumps
 
 presetContainer.addEventListener('mousedown', (e) => {
     isDown = true;
     presetContainer.classList.add('cursor-grabbing');
     startX = e.pageX - presetContainer.offsetLeft;
-    scrollLeft = presetContainer.scrollLeft;
+    startScrollLeft = presetContainer.scrollLeft;
 });
 presetContainer.addEventListener('mouseleave', () => {
     isDown = false;
@@ -1149,8 +1150,9 @@ presetContainer.addEventListener('mousemove', (e) => {
     if (!isDown) return;
     e.preventDefault();
     const x = e.pageX - presetContainer.offsetLeft;
-    const walk = (x - startX) * 2; // Scroll-fast
-    presetContainer.scrollLeft = scrollLeft - walk;
+    const walk = (x - startX) * 2; // Scroll multiplier
+    // Apply delta strictly against the INITIAL position of the click, not compounding
+    presetContainer.scrollLeft = startScrollLeft - walk; 
 });
 // Wheel scroll support
 presetContainer.addEventListener('wheel', (e) => {
