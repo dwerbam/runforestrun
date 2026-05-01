@@ -40,6 +40,9 @@ const elDistance = document.getElementById('metric-distance');
 const elTime = document.getElementById('metric-time');
 const elIncline = document.getElementById('metric-incline');
 const elHr = document.getElementById('metric-hr');
+const elRouteDistance = document.getElementById('metric-route-distance');
+const elTripKcal = document.getElementById('metric-trip-kcal');
+const elCalories = document.getElementById('metric-calories');
 
 // Current Run State
 let runState = 'idle'; // 'idle', 'recording', 'paused'
@@ -149,6 +152,7 @@ function updateConnectionStatus(connected) {
 let simulationInterval = null;
 let simDistance = 0;
 let simTime = 0;
+let simCalories = 0;
 
 function toggleSimulation() {
     if (simulationInterval) {
@@ -162,6 +166,7 @@ function toggleSimulation() {
         // Start Simulation
         simDistance = 0;
         simTime = 0;
+        simCalories = 0;
         btnSimulate.textContent = 'Stop Simulation';
         btnSimulate.classList.replace('bg-purple-500', 'bg-purple-800');
         
@@ -175,13 +180,15 @@ function toggleSimulation() {
         simulationInterval = setInterval(() => {
             simTime += 1;
             simDistance += 2.778; // 10 km/h in meters per second
+            simCalories += 0.175; // ~10.5 kcal/min at 10 km/h
             
             updateDashboard({
                 speed: 10.0,
                 totalDistance: Math.round(simDistance),
                 elapsedTime: simTime,
                 inclination: 1.5,
-                heartRate: 145
+                heartRate: 145,
+                totalCalories: Math.round(simCalories)
             });
         }, 1000);
     }
@@ -739,6 +746,7 @@ function updateDashboard(data) {
         if (runState === 'recording') {
             currentRun.calories += caloriesDelta;
         }
+        elCalories.textContent = runState === 'recording' ? Math.round(currentRun.calories) : Math.round(data.totalCalories);
     }
 
     // Time from machine
@@ -794,6 +802,7 @@ function startRun() {
                 speeds: [],
                 calories: 0
             };
+            elCalories.textContent = '0';
 
             lastTimerTick = Date.now();
             timerInterval = setInterval(updateTimer, 1000);
@@ -1319,6 +1328,12 @@ function parseGPX(xmlString) {
     }, new maplibregl.LngLatBounds(geoJsonCoords[0], geoJsonCoords[0]));
     
     map.fitBounds(bounds, { padding: 40 });
+
+    const routeTotalKm = loadedGpxRoute[loadedGpxRoute.length - 1].cumulativeDistance / 1000;
+    elRouteDistance.textContent = routeTotalKm.toFixed(1);
+    elTripKcal.textContent = Math.round(routeTotalKm * 60);
+
+    elCalories.textContent = '--';
     
     // Update live preview in modal as soon as file loads
     updatePreviewChart();
