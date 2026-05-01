@@ -46,13 +46,57 @@
                 <input type="file" id="overlay-input-gpx" accept=".gpx" class="hidden">
             </label>
             
-            <div class="w-full border-t border-gray-600/50 pt-6 relative">
-                <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-900 px-4 text-xs font-semibold text-gray-400 uppercase tracking-widest">Or try a preset route</span>
-                <div class="flex flex-wrap justify-center gap-3 mt-4" id="preset-gpx-container">
-                    <button class="btn-preset-gpx bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-2 px-4 rounded-xl transition border border-white/10" data-url="routes/integral-parque-del-retiro-monumento-a-alfonso-xii-palacio-d.gpx">🌳 Parque del Retiro (Madrid)</button>
-                    <button class="btn-preset-gpx bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-2 px-4 rounded-xl transition border border-white/10" data-url="routes/lauchernalp-refugio-lostchenpasshute-suiza.gpx">⛰️ Lauchernalp (Switzerland)</button>
-                    <button class="btn-preset-gpx bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-2 px-4 rounded-xl transition border border-white/10" data-url="routes/londres-centro-turismo-rapido-1o-dia-centre-of-london.gpx">🎡 London Center Loop</button>
-                    <button class="btn-preset-gpx bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-2 px-4 rounded-xl transition border border-white/10" data-url="routes/ruta-fluvial-del-turia-del-puente-de-villamarchante-al-mas-d (1).gpx">🏞️ Ruta Fluvial del Turia</button>
+            <div class="w-full border-t border-gray-600/50 pt-6 relative px-4">
+                <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-900 px-4 text-xs font-semibold text-gray-400 uppercase tracking-widest whitespace-nowrap">Or try a preset route</span>
+                
+                <div class="relative w-full overflow-hidden mt-4">
+                    <!-- Edge fade gradients to indicate scrollability -->
+                    <div class="absolute top-0 bottom-0 left-0 w-8 bg-gradient-to-r from-gray-900 to-transparent z-10 pointer-events-none"></div>
+                    <div class="absolute top-0 bottom-0 right-0 w-12 bg-gradient-to-l from-gray-900 to-transparent z-10 pointer-events-none"></div>
+                    
+                    <!-- Horizontal Scrollable Container -->
+                    <div class="flex overflow-x-auto gap-4 pb-4 snap-x custom-scrollbar-horizontal cursor-grab" id="preset-gpx-container" style="-webkit-overflow-scrolling: touch;">
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20 ml-2" data-url="routes/preikestolen-el-pulpito.gpx">
+                            <span class="pointer-events-none">⛰️ Preikestolen</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">7.5 km • Mountain</span>
+                        </button>
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20" data-url="routes/machu-picchu-machu-picchu.gpx">
+                            <span class="pointer-events-none">🗿 Machu Picchu</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">10.2 km • Historic</span>
+                        </button>
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20" data-url="routes/integral-parque-del-retiro-monumento-a-alfonso-xii-palacio-d.gpx">
+                            <span class="pointer-events-none">🌳 Parque del Retiro</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">4.5 km • Flat Park</span>
+                        </button>
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20" data-url="routes/lauchernalp-refugio-lostchenpasshute-suiza.gpx">
+                            <span class="pointer-events-none">🗻 Lauchernalp</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">12.1 km • Alpine</span>
+                        </button>
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20" data-url="routes/londres-centro-turismo-rapido-1o-dia-centre-of-london.gpx">
+                            <span class="pointer-events-none">🎡 London Center</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">14.8 km • City</span>
+                        </button>
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20" data-url="routes/ruta-fluvial-del-turia-del-puente-de-villamarchante-al-mas-d (1).gpx">
+                            <span class="pointer-events-none">🏞️ Ruta del Turia</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">11.4 km • River</span>
+                        </button>
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20" data-url="routes/paseo-fluvial-nong-khai.gpx">
+                            <span class="pointer-events-none">🌊 Paseo Nong Khai</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">8.3 km • Flat</span>
+                        </button>
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20" data-url="routes/paseo-del-mekong-nong-khai.gpx">
+                            <span class="pointer-events-none">🌅 Paseo del Mekong</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">6.2 km • Sunset</span>
+                        </button>
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20 mr-2" data-url="routes/sar-kheng-garden-y-pagoda.gpx">
+                            <span class="pointer-events-none">🛕 Sar Kheng Garden</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">5.5 km • Temple</span>
+                        </button>
+                        <button class="btn-preset-gpx snap-start flex-shrink-0 w-48 bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-3 px-4 rounded-xl transition border border-white/10 flex flex-col items-center justify-center text-center h-20 mr-4" data-url="routes/punta-cucuraza-y-mirador-pena-del-medio-en-ruta-circular-des.gpx">
+                            <span class="pointer-events-none">🦅 Punta Cucuraza</span>
+                            <span class="text-[10px] text-gray-400 font-normal mt-1 pointer-events-none">9.8 km • Summit</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -338,6 +382,8 @@
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        .custom-scrollbar-horizontal::-webkit-scrollbar { height: 0px; /* Hide scrollbar completely but allow scroll */ }
+        .custom-scrollbar-horizontal { scrollbar-width: none; /* Firefox */ -ms-overflow-style: none; /* IE/Edge */ }
     </style>
     <script src="storage.js"></script>
     <script src="training.js"></script>

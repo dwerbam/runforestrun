@@ -1104,6 +1104,39 @@ function handleGpxFile(file) {
 // Event Listeners for File Selection
 overlayInputGpx.addEventListener('change', (e) => handleGpxFile(e.target.files[0]));
 
+// Horizontal Mouse Scroll for Carousel
+const presetContainer = document.getElementById('preset-gpx-container');
+let isDown = false;
+let startX;
+let scrollLeft;
+
+presetContainer.addEventListener('mousedown', (e) => {
+    isDown = true;
+    presetContainer.classList.add('cursor-grabbing');
+    startX = e.pageX - presetContainer.offsetLeft;
+    scrollLeft = presetContainer.scrollLeft;
+});
+presetContainer.addEventListener('mouseleave', () => {
+    isDown = false;
+    presetContainer.classList.remove('cursor-grabbing');
+});
+presetContainer.addEventListener('mouseup', () => {
+    isDown = false;
+    presetContainer.classList.remove('cursor-grabbing');
+});
+presetContainer.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - presetContainer.offsetLeft;
+    const walk = (x - startX) * 2; // Scroll-fast
+    presetContainer.scrollLeft = scrollLeft - walk;
+});
+// Wheel scroll support
+presetContainer.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    presetContainer.scrollLeft += e.deltaY;
+});
+
 document.querySelectorAll('.btn-preset-gpx').forEach(btn => {
     btn.addEventListener('click', async (e) => {
         const url = e.target.getAttribute('data-url');

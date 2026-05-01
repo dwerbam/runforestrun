@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="Wikiloc - https://www.wikiloc.com" version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>Wikiloc - Machu Picchu - Machu Picchu</name>
+    <link href="https://www.wikiloc.com/running-trails/machu-picchu-machu-picchu-44641520">
+      <text>Machu Picchu - Machu Picchu - Wikiloc on Wikiloc</text>
+    </link>
+    <time>2026-04-30T18:13:26.612Z</time>
+  </metadata>
+  <trk>
+    <name>Machu Picchu - Machu Picchu - Wikiloc</name>
+    <cmt></cmt>
+    <desc></desc>
+    <trkseg>
+      <trkpt lat="-13.155616" lon="-72.530304">
+        <ele>2041.679</ele>
+        <time>1999-12-13T18:55:38Z</time>
+      </trkpt>
+      <trkpt lat="-13.155682" lon="-72.530568">
+        <ele>2041.605</ele>
+        <time>1999-12-13T18:56:00Z</time>
+      </trkpt>
+      <trkpt lat="-13.156166" lon="-72.531104">
+        <ele>2031.425</ele>
+        <time>1999-12-13T18:56:57Z</time>
+      </trkpt>
+      <trkpt lat="-13.156214" lon="-72.531356">
+        <ele>2027.408</ele>
+        <time>1999-12-13T18:57:13Z</time>
+      </trkpt>
+      <trkpt lat="-13.156867" lon="-72.532010">
+        <ele>2035.821</ele>
+        <time>1999-12-13T18:58:17Z</time>
+      </trkpt>
+      <trkpt lat="-13.157296" lon="-72.532077">
+        <ele>2042.011</ele>
+        <time>1999-12-13T18:58:49Z</time>
+      </trkpt>
+      <trkpt lat="-13.157800" lon="-72.532425">
+        <ele>2030.433</ele>
+        <time>1999-12-13T18:59:35Z</time>
+      </trkpt>
+      <trkpt lat="-13.158219" lon="-72.532478">
+        <ele>2031.061</ele>
+        <time>1999-12-13T19:00:05Z</time>
+      </trkpt>
+      <trkpt lat="-13.158661" lon="-72.532797">
+        <ele>2022.488</ele>
+        <time>1999-12-13T19:00:45Z</time>
+      </trkpt>
+      <trkpt lat="-13.159221" lon="-72.532866">
+        <ele>2012.232</ele>
+        <time>1999-12-13T19:01:24Z</time>
+      </trkpt>
+      <trkpt lat="-13.161331" lon="-72.533939">
+        <ele>2015.499</ele>
+        <time>1999-12-13T19:04:09Z</time>
+      </trkpt>
+      <trkpt lat="-13.161963" lon="-72.533515">
+        <ele>2042.497</ele>
+        <time>1999-12-13T19:04:27Z</time>
+      </trkpt>
+      <trkpt lat="-13.161983" lon="-72.533770">
+        <ele>2042.469</ele>
+        <time>1999-12-13T19:04:40Z</time>
+      </trkpt>
+      <trkpt lat="-13.162453" lon="-72.533427">
+        <ele>2076.604</ele>
+        <time>1999-12-13T19:04:52Z</time>
+      </trkpt>
+      <trkpt lat="-13.161670" lon="-72.534808">
+        <ele>2057.624</ele>
+        <time>1999-12-13T19:05:11Z</time>
+      </trkpt>
+      <trkpt lat="-13.161586" lon="-72.535884">
+        <ele>2016.008</ele>
+        <time>1999-12-13T19:06:26Z</time>
+      </trkpt>
+      <trkpt lat="-13.161246" lon="-72.536623">
+        <ele>2025.010</ele>
+        <time>1999-12-13T19:07:18Z</time>
+      </trkpt>
+      <trkpt lat="-13.159979" lon="-72.538151">
+        <ele>2064.860</ele>
+        <time>1999-12-13T19:09:38Z</time>
+      </trkpt>
+      <trkpt lat="-13.159117" lon="-72.538674">
+        <ele>2056.272</ele>
+        <time>1999-12-13T19:10:49Z</time>
+      </trkpt>
+      <trkpt lat="-13.158121" lon="-72.541046">
+        <ele>2037.290</ele>
+        <time>1999-12-13T19:13:47Z</time>
+      </trkpt>
+      <trkpt lat="-13.158000" lon="-72.541183">
+        <ele>2035.417</ele>
+        <time>1999-12-13T19:13:56Z</time>
+      </trkpt>
+      <trkpt lat="-13.157446" lon="-72.541294">
+        <ele>2059.211</ele>
+        <time>1999-12-13T19:14:49Z</time>
+      </trkpt>
+      <trkpt lat="-13.157378" lon="-72.541090">
+        <ele>2042.698</ele>
+        <time>1999-12-13T19:14:56Z</time>
+      </trkpt>
+      <trkpt lat="-13.156515" lon="-72.540862">
+        <ele>1993.096</ele>
+        <time>1999-12-13T19:15:47Z</time>
+      </trkpt>
+      <trkpt lat="-13.156458" lon="-72.540641">
+        <ele>1989.422</ele>
+        <time>1999-12-13T19:16:00Z</time>
+      </trkpt>
+      <trkpt lat="-13.156117" lon="-72.540364">
+        <ele>1996.062</ele>
+        <time>1999-12-13T19:16:28Z</time>
+      </trkpt>
+      <trkpt lat="-13.155874" lon="-72.539627">
+        <ele>1986.808</ele>
+        <time>1999-12-13T19:17:11Z</time>
+      </trkpt>
+      <trkpt lat="-13.154880" lon="-72.539261">
+        <ele>1978.408</ele>
+        <time>1999-12-13T19:18:21Z</time>
+      </trkpt>
+      <trkpt lat="-13.154708" lon="-72.538336">
+        <ele>1993.276</ele>
+        <time>1999-12-13T19:19:25Z</time>
+      </trkpt>
+      <trkpt lat="-13.154904" lon="-72.537496">
+        <ele>1976.696</ele>
+        <time>1999-12-13T19:20:12Z</time>
+      </trkpt>
+      <trkpt lat="-13.154586" lon="-72.536952">
+        <ele>1973.438</ele>
+        <time>1999-12-13T19:21:02Z</time>
+      </trkpt>
+      <trkpt lat="-13.153853" lon="-72.536724">
+        <ele>2029.826</ele>
+        <time>1999-12-13T19:21:55Z</time>
+      </trkpt>
+      <trkpt lat="-13.152804" lon="-72.535965">
+        <ele>2032.823</ele>
+        <time>1999-12-13T19:23:31Z</time>
+      </trkpt>
+      <trkpt lat="-13.152238" lon="-72.535984">
+        <ele>2003.837</ele>
+        <time>1999-12-13T19:24:11Z</time>
+      </trkpt>
+      <trkpt lat="-13.151670" lon="-72.535788">
+        <ele>1931.014</ele>
+        <time>1999-12-13T19:24:58Z</time>
+      </trkpt>
+      <trkpt lat="-13.150993" lon="-72.535829">
+        <ele>1930.482</ele>
+        <time>1999-12-13T19:25:43Z</time>
+      </trkpt>
+      <trkpt lat="-13.150104" lon="-72.536297">
+        <ele>1930.412</ele>
+        <time>1999-12-13T19:26:53Z</time>
+      </trkpt>
+      <trkpt lat="-13.149643" lon="-72.536914">
+        <ele>1930.232</ele>
+        <time>1999-12-13T19:27:41Z</time>
+      </trkpt>
+      <trkpt lat="-13.149584" lon="-72.537662">
+        <ele>1991.005</ele>
+        <time>1999-12-13T19:28:35Z</time>
+      </trkpt>
+      <trkpt lat="-13.149172" lon="-72.538740">
+        <ele>1915.208</ele>
+        <time>1999-12-13T19:29:46Z</time>
+      </trkpt>
+      <trkpt lat="-13.149012" lon="-72.540047">
+        <ele>1921.895</ele>
+        <time>1999-12-13T19:31:13Z</time>
+      </trkpt>
+      <trkpt lat="-13.148827" lon="-72.540497">
+        <ele>1929.295</ele>
+        <time>1999-12-13T19:31:46Z</time>
+      </trkpt>
+      <trkpt lat="-13.148651" lon="-72.540808">
+        <ele>1930.267</ele>
+        <time>1999-12-13T19:32:07Z</time>
+      </trkpt>
+      <trkpt lat="-13.147078" lon="-72.542277">
+        <ele>1901.415</ele>
+        <time>1999-12-13T19:34:40Z</time>
+      </trkpt>
+      <trkpt lat="-13.146381" lon="-72.543774">
+        <ele>1911.862</ele>
+        <time>1999-12-13T19:36:30Z</time>
+      </trkpt>
+      <trkpt lat="-13.146101" lon="-72.545135">
+        <ele>1926.416</ele>
+        <time>1999-12-13T19:38:17Z</time>
+      </trkpt>
+      <trkpt lat="-13.146018" lon="-72.546393">
+        <ele>1913.853</ele>
+        <time>1999-12-13T19:39:45Z</time>
+      </trkpt>
+      <trkpt lat="-13.145428" lon="-72.548187">
+        <ele>1900.831</ele>
+        <time>1999-12-13T19:42:02Z</time>
+      </trkpt>
+      <trkpt lat="-13.145501" lon="-72.548955">
+        <ele>1896.269</ele>
+        <time>1999-12-13T19:42:58Z</time>
+      </trkpt>
+      <trkpt lat="-13.146304" lon="-72.549965">
+        <ele>1891.604</ele>
+        <time>1999-12-13T19:44:23Z</time>
+      </trkpt>
+      <trkpt lat="-13.147360" lon="-72.551746">
+        <ele>1887.024</ele>
+        <time>1999-12-13T19:46:51Z</time>
+      </trkpt>
+      <trkpt lat="-13.147660" lon="-72.552559">
+        <ele>1873.008</ele>
+        <time>1999-12-13T19:47:48Z</time>
+      </trkpt>
+      <trkpt lat="-13.148469" lon="-72.553580">
+        <ele>1877.030</ele>
+        <time>1999-12-13T19:49:15Z</time>
+      </trkpt>
+      <trkpt lat="-13.149159" lon="-72.554141">
+        <ele>1893.290</ele>
+        <time>1999-12-13T19:50:15Z</time>
+      </trkpt>
+      <trkpt lat="-13.149685" lon="-72.555280">
+        <ele>1878.862</ele>
+        <time>1999-12-13T19:51:39Z</time>
+      </trkpt>
+      <trkpt lat="-13.151020" lon="-72.556199">
+        <ele>1885.040</ele>
+        <time>1999-12-13T19:53:28Z</time>
+      </trkpt>
+      <trkpt lat="-13.152478" lon="-72.556561">
+        <ele>1881.257</ele>
+        <time>1999-12-13T19:55:09Z</time>
+      </trkpt>
+      <trkpt lat="-13.154357" lon="-72.556493">
+        <ele>1880.811</ele>
+        <time>1999-12-13T19:57:12Z</time>
+      </trkpt>
+      <trkpt lat="-13.154883" lon="-72.556164">
+        <ele>1900.248</ele>
+        <time>1999-12-13T19:57:48Z</time>
+      </trkpt>
+      <trkpt lat="-13.155507" lon="-72.556163">
+        <ele>1900.096</ele>
+        <time>1999-12-13T19:58:36Z</time>
+      </trkpt>
+      <trkpt lat="-13.155811" lon="-72.555781">
+        <ele>1938.645</ele>
+        <time>1999-12-13T19:59:13Z</time>
+      </trkpt>
+      <trkpt lat="-13.156392" lon="-72.555494">
+        <ele>1883.847</ele>
+        <time>1999-12-13T19:59:57Z</time>
+      </trkpt>
+      <trkpt lat="-13.157032" lon="-72.555552">
+        <ele>1869.411</ele>
+        <time>1999-12-13T20:01:34Z</time>
+      </trkpt>
+      <trkpt lat="-13.158635" lon="-72.554589">
+        <ele>1923.008</ele>
+        <time>1999-12-13T20:03:48Z</time>
+      </trkpt>
+      <trkpt lat="-13.159148" lon="-72.553739">
+        <ele>1861.278</ele>
+        <time>1999-12-13T20:04:49Z</time>
+      </trkpt>
+      <trkpt lat="-13.159608" lon="-72.553428">
+        <ele>1871.828</ele>
+        <time>1999-12-13T20:05:27Z</time>
+      </trkpt>
+      <trkpt lat="-13.160436" lon="-72.553219">
+        <ele>1865.690</ele>
+        <time>1999-12-13T20:06:22Z</time>
+      </trkpt>
+      <trkpt lat="-13.161193" lon="-72.552765">
+        <ele>1864.638</ele>
+        <time>1999-12-13T20:07:20Z</time>
+      </trkpt>
+      <trkpt lat="-13.162501" lon="-72.552335">
+        <ele>1853.235</ele>
+        <time>1999-12-13T20:08:55Z</time>
+      </trkpt>
+      <trkpt lat="-13.167390" lon="-72.553012">
+        <ele>1877.639</ele>
+        <time>1999-12-13T20:14:21Z</time>
+      </trkpt>
+      <trkpt lat="-13.167712" lon="-72.552924">
+        <ele>1881.486</ele>
+        <time>1999-12-13T20:14:43Z</time>
+      </trkpt>
+      <trkpt lat="-13.168644" lon="-72.552311">
+        <ele>1865.854</ele>
+        <time>1999-12-13T20:16:06Z</time>
+      </trkpt>
+      <trkpt lat="-13.169033" lon="-72.552233">
+        <ele>1879.427</ele>
+        <time>1999-12-13T20:16:33Z</time>
+      </trkpt>
+      <trkpt lat="-13.169705" lon="-72.552359">
+        <ele>1850.468</ele>
+        <time>1999-12-13T20:17:37Z</time>
+      </trkpt>
+      <trkpt lat="-13.169972" lon="-72.552675">
+        <ele>1855.014</ele>
+        <time>1999-12-13T20:18:22Z</time>
+      </trkpt>
+      <trkpt lat="-13.170646" lon="-72.552753">
+        <ele>1848.208</ele>
+        <time>1999-12-13T20:19:13Z</time>
+      </trkpt>
+      <trkpt lat="-13.171710" lon="-72.552142">
+        <ele>1854.066</ele>
+        <time>1999-12-13T20:20:42Z</time>
+      </trkpt>
+      <trkpt lat="-13.172048" lon="-72.551557">
+        <ele>1855.886</ele>
+        <time>1999-12-13T20:21:25Z</time>
+      </trkpt>
+      <trkpt lat="-13.172457" lon="-72.551432">
+        <ele>1851.418</ele>
+        <time>1999-12-13T20:22:00Z</time>
+      </trkpt>
+      <trkpt lat="-13.174203" lon="-72.551581">
+        <ele>1842.836</ele>
+        <time>1999-12-13T20:24:01Z</time>
+      </trkpt>
+      <trkpt lat="-13.175230" lon="-72.553482">
+        <ele>1843.253</ele>
+        <time>1999-12-13T20:26:27Z</time>
+      </trkpt>
+      <trkpt lat="-13.175916" lon="-72.555379">
+        <ele>1821.687</ele>
+        <time>1999-12-13T20:28:39Z</time>
+      </trkpt>
+      <trkpt lat="-13.175981" lon="-72.555924">
+        <ele>1811.444</ele>
+        <time>1999-12-13T20:29:15Z</time>
+      </trkpt>
+      <trkpt lat="-13.175901" lon="-72.556602">
+        <ele>1811.822</ele>
+        <time>1999-12-13T20:30:01Z</time>
+      </trkpt>
+      <trkpt lat="-13.175788" lon="-72.556703">
+        <ele>1813.623</ele>
+        <time>1999-12-13T20:30:15Z</time>
+      </trkpt>
+      <trkpt lat="-13.175532" lon="-72.556670">
+        <ele>1795.483</ele>
+        <time>1999-12-13T20:30:34Z</time>
+      </trkpt>
+      <trkpt lat="-13.175504" lon="-72.556498">
+        <ele>1811.811</ele>
+        <time>1999-12-13T20:31:40Z</time>
+      </trkpt>
+      <trkpt lat="-13.174723" lon="-72.556591">
+        <ele>1721.208</ele>
+        <time>1999-12-13T20:35:23Z</time>
+      </trkpt>
+      <trkpt lat="-13.174035" lon="-72.559264">
+        <ele>1564.026</ele>
+        <time>1999-12-13T20:38:48Z</time>
+      </trkpt>
+      <trkpt lat="-13.174320" lon="-72.561430">
+        <ele>1821.086</ele>
+        <time>1999-12-13T20:41:40Z</time>
+      </trkpt>
+      <trkpt lat="-13.174039" lon="-72.561951">
+        <ele>1847.848</ele>
+        <time>1999-12-13T20:42:51Z</time>
+      </trkpt>
+      <trkpt lat="-13.174052" lon="-72.562501">
+        <ele>1870.086</ele>
+        <time>1999-12-13T20:43:28Z</time>
+      </trkpt>
+      <trkpt lat="-13.174482" lon="-72.563569">
+        <ele>1826.063</ele>
+        <time>1999-12-13T20:45:04Z</time>
+      </trkpt>
+      <trkpt lat="-13.173808" lon="-72.564143">
+        <ele>1773.827</ele>
+        <time>1999-12-13T20:46:02Z</time>
+      </trkpt>
+      <trkpt lat="-13.174213" lon="-72.564942">
+        <ele>1820.254</ele>
+        <time>1999-12-13T20:47:01Z</time>
+      </trkpt>
+      <trkpt lat="-13.174070" lon="-72.565416">
+        <ele>1819.292</ele>
+        <time>1999-12-13T20:47:37Z</time>
+      </trkpt>
+    </trkseg>
+  </trk></gpx>
