@@ -476,8 +476,6 @@ function showMotivationalMessage(type) {
 
 let lastHrCmdTime = 0;
 const HR_COOLDOWN_MS = 30000;
-let lastSpeedCmdTime = 0;
-const SPEED_COOLDOWN_MS = 60000;
 let lastInclineCmdTime = 0;
 const INCLINE_COOLDOWN_MS = 60000;
 const LOOKAHEAD_METERS = 150;
@@ -600,20 +598,15 @@ function updateDashboard(data) {
                                  }
                              }
                              
-                             // --- MAGIC: Auto-Speed from Training Profile (Throttled) ---
-                             if (currentTrainingProfile && runState === 'recording') {
-                                 const suggestedSpeed = currentTrainingProfile[currentIndex];
-                                 
-                                 // Check if we need to change speed (difference of at least 0.1 km/h)
-                                 if (suggestedSpeed && Math.abs(suggestedSpeed - currentTargetSpeed) >= 0.1) {
-                                     // Send command only if cooldown has passed
-                                     if (now - lastSpeedCmdTime > SPEED_COOLDOWN_MS) {
-                                         console.log(`Auto-Speed Update: Profile changing speed from ${currentTargetSpeed} to ${suggestedSpeed.toFixed(1)} km/h`);
-                                         setMachineSpeed(suggestedSpeed);
-                                         lastSpeedCmdTime = now;
-                                     }
-                                 }
-                             }
+                            // --- MAGIC: Auto-Speed from Training Profile ---
+                              if (currentTrainingProfile && runState === 'recording') {
+                                  const suggestedSpeed = currentTrainingProfile[currentIndex];
+                                  
+                                  if (suggestedSpeed && Math.abs(suggestedSpeed - currentTargetSpeed) >= 0.1) {
+                                      console.log(`Auto-Speed Update: Profile changing speed from ${currentTargetSpeed} to ${suggestedSpeed.toFixed(1)} km/h`);
+                                      setMachineSpeed(suggestedSpeed);
+                                  }
+                              }
                              
                              // --- MAGIC: Lookahead Motivational Coach ---
                              if (runState === 'recording') {
@@ -817,9 +810,6 @@ function startRun() {
                     displayTargetSpeed.textContent = currentTargetSpeed.toFixed(1);
                     setMachineSpeed(currentTargetSpeed);
                 }
-                
-                // Reset cooldowns
-                lastSpeedCmdTime = Date.now(); 
             }
         }
     }, 1000);
