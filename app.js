@@ -742,11 +742,8 @@ function updateDashboard(data) {
         elCalories.textContent = runState === 'recording' ? Math.round(currentRun.calories) : Math.round(data.totalCalories);
     }
 
-    // Time from machine
     if (data.elapsedTime !== undefined) {
-        if (runState === 'idle') {
-             elTime.textContent = formatDuration(data.elapsedTime);
-        }
+        elTime.textContent = formatDuration(data.elapsedTime);
     }
 }
 
