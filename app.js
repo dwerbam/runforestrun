@@ -48,6 +48,7 @@ const elCalories = document.getElementById('metric-calories');
 let runState = 'idle'; // 'idle', 'recording', 'paused'
 let lastMachineDistance = null;
 let lastMachineCalories = null;
+let hasControl = false; // Tracks if we've successfully obtained FTMS Control Point
 
 let currentRun = {
     durationSeconds: 0,
@@ -112,6 +113,7 @@ function disconnectTreadmill() {
 
 function onDisconnected() {
     console.log('Device disconnected');
+    hasControl = false;
     updateConnectionStatus(false);
     if (runState !== 'idle') {
         stopRun();
@@ -131,6 +133,7 @@ function updateConnectionStatus(connected) {
             machineControlsPanel.classList.remove('opacity-50', 'pointer-events-none');
         }
     } else {
+        hasControl = false;
         statusDot.classList.replace('bg-green-500', 'bg-red-500');
         statusText.textContent = 'Disconnected';
         btnConnect.classList.remove('hidden');
@@ -215,6 +218,11 @@ function handleControlResponse(event) {
 
         console.log(`Command 0x${reqOpCode.toString(16)} returned: ${resultMsg}`);
         
+        if (reqOpCode === 0x00 && resultCode === 0x01) {
+            hasControl = true;
+            console.log('Control obtained successfully.');
+        }
+        
         if (resultCode !== 0x01) {
             showCmdStatus(`Warning: Command rejected (${resultMsg})`);
         }
@@ -224,10 +232,15 @@ function handleControlResponse(event) {
 async function sendCommand(bytes) {
     if (!controlCharacteristic) return;
     try {
+        if (bytes[0] !== 0x00 && !hasControl) {
+            console.log('Need control — requesting first...');
+            await controlCharacteristic.writeValue(new Uint8Array([0x00]));
+        }
         await controlCharacteristic.writeValue(new Uint8Array(bytes));
     } catch (e) {
         console.error('Failed to send command', e);
         showCmdStatus('Error sending command.');
+        hasControl = false;
     }
 }
 
@@ -798,15 +811,14 @@ function startRun() {
             timerInterval = setInterval(updateTimer, 1000);
             
             if (controlCharacteristic) {
-                // 1. Send the mechanical start command
-                startMachine();
-                
-                // 2. Set the initial speed to whatever the profile asks for at kilometer 0
-                if (currentTrainingProfile && currentTrainingProfile.length > 0) {
-                    currentTargetSpeed = currentTrainingProfile[0];
-                    displayTargetSpeed.textContent = currentTargetSpeed.toFixed(1);
-                    setMachineSpeed(currentTargetSpeed);
-                }
+                (async () => {
+                    await startMachine();
+                    if (currentTrainingProfile && currentTrainingProfile.length > 0) {
+                        currentTargetSpeed = currentTrainingProfile[0];
+                        displayTargetSpeed.textContent = currentTargetSpeed.toFixed(1);
+                        await setMachineSpeed(currentTargetSpeed);
+                    }
+                })();
             }
         }
     }, 1000);
@@ -820,6 +832,7 @@ function pauseRun() {
         btnPauseRun.classList.replace('hover:bg-yellow-400', 'hover:bg-green-400');
         runStatusText.textContent = "Paused";
         runStatusText.classList.replace('text-green-400', 'text-yellow-400');
+        pauseMachine();
     } else if (runState === 'paused') {
         runState = 'recording';
         btnPauseRun.innerHTML = '⏸ Pause';
@@ -828,6 +841,7 @@ function pauseRun() {
         runStatusText.textContent = "Recording";
         runStatusText.classList.replace('text-yellow-400', 'text-green-400');
         lastTimerTick = Date.now(); // Reset tick to avoid jumping time
+        startMachine();
     }
 }
 
@@ -851,6 +865,8 @@ function stopRun() {
     btnPauseRun.classList.add('hidden');
     btnStopRun.classList.add('hidden');
     runStatusText.classList.add('hidden');
+    
+    stopMachine();
     
     // Reset Pause button to original state for next run
     btnPauseRun.innerHTML = '⏸ Pause';
@@ -892,8 +908,8 @@ btnMachineStop.addEventListener('click', stopMachine);
 btnSpeedDown.addEventListener('click', () => setMachineSpeed(currentTargetSpeed - 0.1));
 btnSpeedUp.addEventListener('click', () => setMachineSpeed(currentTargetSpeed + 0.1));
 btnQuickSpeeds.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        setMachineSpeed(parseFloat(e.target.getAttribute('data-speed')));
+    btn.addEventListener('click', () => {
+        setMachineSpeed(parseFloat(btn.getAttribute('data-speed')));
     });
 });
 btnSetIncline.addEventListener('click', setMachineIncline);
